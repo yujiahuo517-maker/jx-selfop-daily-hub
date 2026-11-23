@@ -1,0 +1,16 @@
+{
+  "name": "jx-selfop-board",
+  "version": "1.0.0",
+  "private": true,
+  "description": "自营 AI 作业完成看板（实时版：矩阵页 + 上报接口 + 数据层）",
+  "scripts": {
+    "start": "node _ssa_guard.js"
+  },
+  "imagination": {
+    "businessStart": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "_ssa_guard.js"
+}

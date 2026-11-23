@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自营作业完成看板</title>
+  <style>
+    :root { --ink:#101828; --sub:#667085; --line:#eaecf0; --bg:#f7f8fa;
+      --done:#067647; --done-bg:#ecfdf3; --run:#175cd3; --run-bg:#eff8ff;
+      --bad:#b42318; --bad-bg:#fef3f2; --pend:#475467; --pend-bg:#f2f4f7; --skip:#98a2b3; --skip-bg:#f9fafb; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink);
+      font:14px/1.55 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+    header { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between;
+      padding:14px 20px; background:#fff; border-bottom:1px solid var(--line); }
+    .brand { font-size:16px; font-weight:700; }
+    .meta { display:flex; gap:12px; align-items:center; color:var(--sub); font-size:13px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px;
+      background:var(--done-bg); color:var(--done); font-size:12px; font-weight:600; }
+    .pill i { width:6px; height:6px; border-radius:50%; background:currentColor; }
+    main { max-width:1180px; margin:0 auto; padding:18px 20px 40px; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+    .card-head { display:flex; flex-wrap:wrap; gap:10px 20px; align-items:flex-start;
+      justify-content:space-between; padding:16px 18px 12px; border-bottom:1px solid var(--line); }
+    h2 { margin:0; font-size:17px; }
+    .sub { margin:4px 0 0; color:var(--sub); font-size:12.5px; }
+    .legend { display:flex; flex-wrap:wrap; gap:12px; margin:0; padding:0; list-style:none;
+      color:var(--sub); font-size:12px; }
+    .legend li { display:flex; align-items:center; gap:5px; }
+    .dot { width:7px; height:7px; border-radius:50%; background:var(--skip); }
+    .dot.done { background:var(--done); } .dot.running { background:var(--run); }
+    .dot.failed { background:var(--bad); } .dot.pending { background:#98a2b3; } .dot.skipped { background:#d0d5dd; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:separate; border-spacing:0; }
+    th, td { padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    tbody tr:last-child td { border-bottom:0; }
+    thead th { background:#fff; text-align:left; font-weight:600; white-space:nowrap;
+      border-bottom:1px solid var(--line); }
+    thead th .pri { display:block; color:var(--bad); font-size:11px; letter-spacing:.04em; }
+    thead th .tname { display:block; font-size:13px; }
+    thead th .tmeta { display:block; color:var(--sub); font-weight:400; font-size:11.5px; }
+    th.who, td.who { position:sticky; left:0; background:#fff; z-index:1; min-width:186px;
+      border-right:1px solid var(--line); }
+    .who-inner { display:flex; gap:10px; align-items:center; }
+    .avatar { flex:none; width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+      font-size:13px; font-weight:700; color:#175cd3; background:#eff4ff; }
+    .who-text { line-height:1.35; }
+    .who-text b { display:block; font-size:13.5px; }
+    .who-text small { display:block; color:var(--sub); font-size:11.5px; }
+    td.cell { white-space:nowrap; }
+    .chip { display:inline-block; padding:2px 10px; border-radius:8px; font-size:12px; }
+    .chip.done { color:var(--done); background:var(--done-bg); }
+    .chip.running { color:var(--run); background:var(--run-bg); }
+    .chip.failed, .chip.blocked { color:var(--bad); background:var(--bad-bg); }
+    .chip.pending { color:var(--pend); background:var(--pend-bg); }
+    .chip.skipped { color:var(--skip); background:var(--skip-bg); }
+    .na { color:#d0d5dd; }
+    .note { margin:14px 0 0; color:var(--sub); font-size:12px; }
+    .btn { border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:9px;
+      padding:5px 12px; font-size:12.5px; cursor:pointer; }
+    .btn:hover { background:#f9fafb; }
+    .totals { display:flex; flex-wrap:wrap; gap:8px 18px; padding:12px 18px; border-bottom:1px solid var(--line);
+      background:#fcfcfd; font-size:12.5px; color:var(--sub); }
+    .totals b { color:var(--ink); font-weight:600; }
+    .detail-table th, .detail-table td { font-size:12.5px; padding:9px 12px; }
+    .detail-table td.sum { min-width:260px; }
+  .detail-table td:nth-child(1) { white-space:nowrap; }
+  .detail-table td:nth-child(2) { min-width:112px; white-space:nowrap; }
+  .detail-table td:nth-child(3) { white-space:nowrap; }
+    .detail-table td.meta-cell { color:var(--sub); min-width:200px; }
+    .detail-table td:last-child { white-space:nowrap; color:var(--sub); }
+    tr.flash td { background:#fffaeb; }
+    .cell.done { cursor:pointer; }
+    @media (max-width:640px) { main { padding:12px; } th.who, td.who { min-width:150px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">自营作业完成看板</div>
+    <div class="meta">
+      <span id="livePill" class="pill"><i></i> 实时</span>
+      <span id="dateLabel"></span>
+      <span id="rateLabel"></span>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>今日完成矩阵</h2>
+          <p class="sub">一格一人一项作业；摘要 / 指标 / 证据见下方「今日明细」，点已完成的格子可直接定位。</p>
+        </div>
+        <ul class="legend">
+          <li><i class="dot done"></i>完成</li>
+          <li><i class="dot running"></i>进行中</li>
+          <li><i class="dot failed"></i>失败</li>
+          <li><i class="dot pending"></i>未开始</li>
+          <li><i class="dot skipped"></i>不适用</li>
+        </ul>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="headRow"><th class="who">成员 / 作业</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" id="detailCard" style="margin-top:14px">
+      <div class="card-head">
+        <div>
+          <h2>今日明细</h2>
+          <p class="sub">每项作业的摘要 / 指标 / 证据（含批次、场次、SKU 数）；点矩阵里已完成的格子可定位到对应行。</p>
+        </div>
+        <button id="toggleDetail" class="btn">收起</button>
+      </div>
+      <div id="detailTotals" class="totals"></div>
+      <div class="table-wrap" id="detailWrap">
+        <table class="detail-table">
+          <thead><tr><th>成员</th><th>作业</th><th>状态</th><th>摘要</th><th>指标</th><th>证据</th><th>更新</th></tr></thead>
+          <tbody id="detailRows"></tbody>
+        </table>
+      </div>
+    </section>
+    <p id="note" class="note"></p>
+  </main>
+  <script src="/simple.js"></script>
+</body>
+</html>

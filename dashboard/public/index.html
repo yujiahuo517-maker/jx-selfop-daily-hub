@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自营 AI 作业完成看板</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark"><span>AI</span></div>
+        <div class="brand-text">
+          <strong>自营作业中枢</strong>
+          <small>JX SELF-OP · DAILY HUB</small>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="live-pill" id="livePill"><i></i> 实时数据</span>
+        <label class="demo-switch" title="开启后叠加演示数据，便于预览看板效果">
+          <input type="checkbox" id="demoToggle" />
+          <span>演示数据</span>
+        </label>
+        <div class="control-group">
+          <input type="date" id="datePicker" class="control" />
+          <select id="rangePicker" class="control">
+            <option value="7">近 7 天</option>
+            <option value="14" selected>近 14 天</option>
+            <option value="30">近 30 天</option>
+          </select>
+          <button class="btn btn-ghost" id="refreshBtn" type="button">刷新</button>
+          <a class="btn btn-dark" id="exportBtn" href="/api/export.csv" download>导出 CSV</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="kicker">TEAM OPERATIONS · 自营 AI 能力落地</p>
+          <h1>自营 AI 作业完成看板<span class="title-dot">.</span></h1>
+          <p class="hero-sub">11 项作业 · 7 位采销 · 一人一档留痕。管理员看完成，采销看今天做什么。</p>
+        </div>
+        <div class="hero-meta">
+          <div class="date-stamp" id="dateStamp">--</div>
+          <div class="date-week" id="dateWeek">--</div>
+        </div>
+      </section>
+
+      <section class="kpis" id="kpis"></section>
+
+      <div class="layout">
+        <section class="panel matrix-panel">
+          <div class="panel-head">
+            <div>
+              <h2>今日完成矩阵</h2>
+              <p class="panel-sub">点击任意格子查看执行留痕，管理员可直接修正状态。</p>
+            </div>
+            <div class="legend">
+              <span><i class="dot done"></i>完成</span>
+              <span><i class="dot running"></i>进行中</span>
+              <span><i class="dot failed"></i>失败</span>
+              <span><i class="dot pending"></i>未开始</span>
+              <span><i class="dot na"></i>不适用</span>
+            </div>
+          </div>
+          <div class="matrix-scroll" id="matrix"></div>
+        </section>
+
+        <aside class="side">
+          <section class="panel side-panel">
+            <div class="panel-head compact">
+              <h2>任务进度</h2>
+              <span class="muted" id="taskCount">--</span>
+            </div>
+            <div id="taskProgress" class="progress-list"></div>
+          </section>
+          <section class="panel side-panel">
+            <div class="panel-head compact">
+              <h2>需要关注</h2>
+              <span class="count-badge" id="alertCount">0</span>
+            </div>
+            <div id="alerts" class="alert-list"></div>
+          </section>
+        </aside>
+      </div>
+
+      <section class="panel tabs-panel">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="people" type="button">人员明细</button>
+          <button class="tab" data-tab="trend" type="button">近 14 天趋势</button>
+          <button class="tab" data-tab="periodic" type="button">定期作业</button>
+          <button class="tab" data-tab="connect" type="button">数据接入</button>
+        </div>
+        <div class="tab-body" id="tab-people"></div>
+        <div class="tab-body hidden" id="tab-trend"></div>
+        <div class="tab-body hidden" id="tab-periodic"></div>
+        <div class="tab-body hidden" id="tab-connect"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>自营 AI 作业中枢 · 数据只用于团队作业管理</span>
+      <span id="generatedAt">--</span>
+    </footer>
+  </div>
+
+  <div class="drawer-mask" id="drawerMask"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <p class="drawer-kicker" id="drawerKicker">TASK DETAIL</p>
+        <h3 id="drawerTitle">作业详情</h3>
+      </div>
+      <button class="icon-btn" id="drawerClose" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+    <div class="drawer-foot" id="drawerFoot"></div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

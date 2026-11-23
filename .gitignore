@@ -1,0 +1,19 @@
+# 本地运行态，不要提交
+data/reports.jsonl
+_run/
+logs/
+__pycache__/
+*.pyc
+node_modules/
+*.zip
+.jx-selfop/
+dist/
+*.log
+publish/ingest-secret.txt
+credentials*.json
+.tmp-home/
+*.db
+# 想象力平台部署时注入的凭证文件，绝不提交
+_env.js
+_data_client.js
+_ssa_guard.js

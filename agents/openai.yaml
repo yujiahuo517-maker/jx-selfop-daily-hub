@@ -1,0 +1,8 @@
+interface:
+  display_name: "自营 AI 作业中枢"
+  short_description: "11 项自营固定作业统一入口：今日作业、逐项 SOP、执行留痕、管理员完成看板"
+  brand_color: "#D92D20"
+  default_prompt: "Use $jx-selfop-daily-hub to 看我今天有哪些自营作业，并逐项执行、留痕、上报看板。"
+
+policy:
+  allow_implicit_invocation: true
