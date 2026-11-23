@@ -24,6 +24,10 @@ python scripts/jx_task.py plan
 python scripts/jx_task.py today
 ```
 
+`--erp` 填**本人 ERP**；`data/roster.json` 与 `tasks.json` 的 `owners` 里是 `zhangsan1` / `lisi2` 等
+**示例占位（非真人）**，首次团队使用前由管理员替换为真实名册，否则成员只能看到全员项，
+看不到超补 / 秒杀 / 特价这类负责人专属作业。
+
 `plan` 是每日主入口：按计划时间排出今天该做的作业，带 SOP 路径、依赖、完成标准、留痕模板和「下一个动作」。
 `today` 是同一份数据的简版列表（兼容旧用法）。每项作业都有固定 `task_id`，SOP 在 `references/sop/`。
 

@@ -94,6 +94,10 @@ powershell -ExecutionPolicy Bypass -File install.ps1 `
 脚本做三件事：复制到 `%USERPROFILE%\.joycode\skills\jx-selfop-daily-hub`、
 写本人配置到 `%USERPROFILE%\.jx-selfop\config.json`、跑一次身份校验。
 
+> `-Erp` 填**你自己的 ERP**（例如 `huoyujia6`）。
+> 仓库自带的 `data/roster.json` 里是 `zhangsan1` / `lisi2` 这类**示例占位**，不是真人，
+> 也不需要你改成他们——管理员分发前会把名册换成真实团队。
+
 > 走线上看板时把 `-Server` 换成管理员给的地址，并加 `-Token <本人令牌>`。
 > 令牌由管理员按 ERP 生成，一人一个，不要互相借用。
 
@@ -305,6 +309,11 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 
 `erp` 必须唯一；看板按 `erp` 统计。人员变动先改这里，再重新分发。
 
+> **仓库里这份是示例占位，不是真实团队。** `zhangsan1` / `lisi2` / `zhengjiu7` 等都没有对应真人，
+> 只是为了让看板开箱有 7 列可看。正式使用前由管理员一次性替换成真实姓名 + ERP，
+> 并同步改 `data/tasks.json` 里各任务的 `owners`；否则新成员 `plan` 里只会出现全员项，
+> 看不到超补 / 秒杀 / 特价这类负责人专属作业。
+
 ### `data/tasks.json` — 任务注册表
 
 | 字段 | 说明 |
@@ -427,6 +436,7 @@ git ls-files | Select-String -Pattern "_env.js|_data_client.js|_ssa_guard.js|rep
 | Python 中文乱码 | 用 Windows Terminal / PowerShell 7；CLI 已强制 UTF-8 |
 | 计划任务没触发 | 任务仅交互式；确认已登录桌面、机器未休眠，或手动跑 `daily-run.ps1` |
 | 成员换人 / 调岗 | 改 `data/roster.json` 与 `tasks.json` 的 `owners`，重新分发 |
+| `plan` 里没有超补 / 秒杀 / 特价 | 这三项是负责人专属，ERP 不在 `tasks.json` 的 `owners` 里；让管理员加进去 |
 | 线上看板打不开 | 门户白名单没加人，或 SSO 未登录；找管理员在「配置权限」里加 |
 
 ---
