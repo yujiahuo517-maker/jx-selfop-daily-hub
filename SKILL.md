@@ -1,11 +1,11 @@
 ---
 name: jx-selfop-daily-hub
-description: 京喜自营采销「AI 作业中枢」：把超级补贴、广告止损、秒杀、特价、每日工具打卡、差评治理、SPU 每日骤降看板等 11 项固定作业汇总为一个入口，按本人 ERP 生成每日执行单、逐个按 SOP 执行并留痕，再汇总到管理员完成看板；支持注册 Windows 计划任务每日常规生成执行单。用户说「今天有什么作业」「每日执行单」「跑自营作业」「每天自动跑一遍」「自营作业看板」「看大家作业完成情况」「管理员看板」「这套工具能做什么、边界在哪」「超级补贴/广告止损/秒杀/特价/差评/SPU骤降」时使用。也用于把技能分发给团队成员并配置统一采集地址。
+description: 京喜自营采销「AI 作业中枢」：把超级补贴、秒杀、特价、每日工具打卡、差评申诉等 9 项固定作业汇总为一个入口，按本人 ERP 生成每日执行单、逐个按 SOP 执行并留痕，再汇总到通用作业完成看板 https://jx-selfop-board.joyapp.jd.com/ ；支持安装自检（doctor）与注册 Windows 计划任务每日常规生成执行单。用户说「今天有什么作业」「每日执行单」「跑自营作业」「每天自动跑一遍」「自营作业看板」「看大家作业完成情况」「看板怎么装/怎么发给同事」「这套工具能做什么、边界在哪」「超级补贴/秒杀/特价/差评/工具打卡」时使用。也用于把技能分发给团队成员并配置统一上报地址。
 ---
 
 # 自营 AI 作业中枢（jx-selfop-daily-hub）
 
-一个入口，管住 11 项自营固定作业：**知道今天做什么 → 按 SOP 执行 → 执行即留痕 → 管理员看完成**。
+一个入口，管住 9 项自营固定作业：**知道今天做什么 → 按 SOP 执行 → 执行即留痕 → 管理员看完成**。
 
 本技能来自《自营AI能力研发进展.pdf》，把原本分散在各人手里的提示词合并成统一作业台。PDF 原件与逐项拆解见 `references/task-matrix.md`。
 
@@ -19,14 +19,14 @@ description: 京喜自营采销「AI 作业中枢」：把超级补贴、广告�
 
 ```powershell
 cd jx-selfop-daily-hub
-python scripts/jx_task.py init --erp <本人ERP> --name <姓名> --server http://<管理员IP>:8080
+python scripts/jx_task.py init --erp <本人ERP> --name <姓名>   # 看板地址默认已是通用看板
 python scripts/jx_task.py plan
 python scripts/jx_task.py today
 ```
 
-`--erp` 填**本人 ERP**；`data/roster.json` 与 `tasks.json` 的 `owners` 里是 `zhangsan1` / `lisi2` 等
-**示例占位（非真人）**，首次团队使用前由管理员替换为真实名册，否则成员只能看到全员项，
-看不到超补 / 秒杀 / 特价这类负责人专属作业。
+`--erp` 填**本人 ERP**；`--server` 默认就是通用看板 `https://jx-selfop-board.joyapp.jd.com`，一般不用填。
+`data/tasks.json` 的 `owners` 里 `zhangsan1` / `lisi2` 是**示例占位（非真人）**：`init` 会把负责人专属
+作业自动指向本人，并把本人写进 `data/roster.json`，所以装完就能看到超补 / 秒杀 / 特价。
 
 `plan` 是每日主入口：按计划时间排出今天该做的作业，带 SOP 路径、依赖、完成标准、留痕模板和「下一个动作」。
 `today` 是同一份数据的简版列表（兼容旧用法）。每项作业都有固定 `task_id`，SOP 在 `references/sop/`。
@@ -49,7 +49,7 @@ python scripts/jx_task.py done --task super_subsidy `
 失败、阻塞、当天不适用分别用 `fail` / `skip`，不要用 `done` 掩盖：
 
 ```powershell
-python scripts/jx_task.py fail --task ad_profit_guard --error "京准通预演返回 403，原始响应已保存"
+python scripts/jx_task.py fail --task bad_review_appeal --error "提报程序返回 401，Cookie 失效（原始响应已保存）"
 python scripts/jx_task.py skip --task tejia_weekly --reason "本周活动停报，已由负责人确认"
 ```
 
@@ -83,17 +83,15 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 5. `done` 或 `fail`，有管理员采集地址时自动上报。
 6. 一天结束运行 `status` 自查；管理员运行 `summary` 或打开看板。
 
-## 11 项作业索引
+## 9 项作业索引
 
 | task_id | 作业 | 优先级 | 负责人 | 排期 | SOP |
 |---|---|---|---|---|---|
 | `super_subsidy` | 超级补贴自动提报 | P0 | 张三 | 每天 18:50 | [01](references/sop/01-super-subsidy.md) |
-| `ad_profit_guard` | 广告入池与出池监控 | P0 | 李四 | 每天 09:00（T-1） | [02](references/sop/02-ad-profit-guard.md) |
 | `flash_sale` | 秒杀提报 | P0 | 张三 | 每天（T+3～T+5） | [03](references/sop/03-flash-sale.md) |
 | `tejia_weekly` | 特价提报与后续券池评估 | P0 | 张三 | 每天 11:30（需采销确认） | [04](references/sop/04-tejia-weekly.md) |
 | `daily_tool_checkin` | 每日工具使用与双表打卡 | P0 | 全员 | 每天 11:00 | [05](references/sop/05-daily-tool-checkin.md) |
 | `bad_review_appeal` | 差评 / 中评申诉治理 | P0 | 全员 | 每天 10:10 | [06](references/sop/06-bad-review-appeal.md) |
-| `spu_daily_drop_board` | SPU 每日骤降 + 机会看板 | P0 | 全员 | 每天 09:30 | [07](references/sop/07-spu-daily-drop-board.md) |
 | `cheap_free_shipping` | 特价便宜包邮 5.9-5 / 4.9-4 | P1 | 张三 | 按周（默认周一） | [08](references/sop/08-cheap-free-shipping.md) |
 | `official_discount_mark` | 官方直降打标 & 国补 & 9 折 | P1 | 待指派 | 按通知 | [09](references/sop/09-official-discount-mark.md) |
 | `aftersale_recovery` | 售后 & 未合单 & 直赔 & 运费回收 | P1 | 待指派 | 按通知 | [10](references/sop/10-aftersale-recovery.md) |
@@ -126,7 +124,7 @@ python scripts/jx_task.py serve --port 8080
 # 浏览器打开 http://127.0.0.1:8080/
 ```
 
-- 首页 `/` 是**简洁矩阵版**：一屏 7 人 × 各自今日计入项（全员项按人展开，负责人专属项只落在本人名下；周一含便宜包邮，典型一天 18 格），绿=完成、蓝=进行中、红=失败、灰=未开始、浅灰=不适用；顶部只有日期和合计完成率。`count_in_rate=false` 的作业（广告入池出池、SPU 骤降）只留痕、不上矩阵。
+- 首页 `/` 是**简洁矩阵版**：一屏名册内成员 × 各自今日计入项（全员项按人展开，负责人专属项只落在本人名下；周一含便宜包邮），绿=完成、蓝=进行中、红=失败、灰=未开始、浅灰=不适用；顶部只有日期和合计完成率。`count_in_rate=false` 的作业（官方直降打标 / 售后回收 / 新人价这类待补 SOP 项）只留痕、不上矩阵。
 - 需要完成率明细、失败原因、14 天趋势、人员明细和 CSV 时开 `/full.html`（完整版）。
 - 采集接口：`POST http://<管理员IP>:8080/api/report`，由成员技能自动调用。
 - 成员只需在初始化时填 `--server http://<管理员IP>:8080`；断网时记录留在本机，恢复后 `report` 补报。
@@ -157,28 +155,47 @@ python scripts/jx_task.py serve --port 8080
 
 ## 分发与安装
 
-把整个 `jx-selfop-daily-hub/` 目录发给成员，或运行：
+两种方式二选一：
+
+- 直接给成员 GitHub 地址：`git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git`
+- 或把打包好的 zip 解压，在目录里运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Server http://<管理员IP>:8080
+powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <管理员给的令牌>
 ```
 
-安装脚本会复制到 `%USERPROFILE%\.joycode\skills\jx-selfop-daily-hub` 并初始化本人配置。成员数据在 `%USERPROFILE%\.jx-selfop\`，卸载技能不丢历史。
+`install.ps1` 的动作：检查 Python 版本（3.10+，建议 3.11+）→ 探测 Node（18+，仅本机看板需要）→
+复制到 `%USERPROFILE%\.joycode\skills\jx-selfop-daily-hub` → 初始化本人配置（看板地址默认
+`https://jx-selfop-board.joyapp.jd.com`）→ 自动跑一次 `doctor` 自检。
+
+安装时自动完成三件自愈动作，不需要手工改 JSON：
+
+1. 把本人写进 `data/roster.json`（覆盖安装不会丢名册）；
+2. 把负责人专属作业的示例占位 `owners` 改成本人 ERP（否则新成员看不到超补 / 秒杀 / 特价）；
+3. 缺上报令牌时给出提示，本地留痕照常可用。
+
+成员数据在 `%USERPROFILE%\.jx-selfop\`，卸载技能不丢历史。
+
+装完自查：
+
+```powershell
+python scripts/jx_task.py doctor   # Python / Node / 名册 / 作业清单 / 看板可达 / 令牌 / 依赖技能
+python scripts/jx_task.py plan
+```
 
 分发前管理员必须确认：
 
-- 采集服务已启动，端口/防火墙放通，成员浏览器能打开看板。
-- `data/roster.json` 与团队名册一致；有人员变动先改这里。
+- 通用看板 `https://jx-selfop-board.joyapp.jd.com/` 可打开，成员在门户白名单里。
+- 每人一个上报令牌（`token --erp <ERP>` 生成，`INGEST_SECRET` 不外发）。
 - 涉及写平台的 SOP，成员已安装并登录 `blacklight` / OSW 等依赖。
 
 ## 依赖与降级
 
 | 作业 | 依赖 | 不可用时的处理 |
 |---|---|---|
-| 超级补贴 / 广告 / 秒杀 / 特价 / 便宜包邮 / 新人价 | `blacklight`（yx / bybt / jzt / osw / EasyBI） | 停止写操作，`fail --status blocked`，不手拼接口 |
+| 超级补贴 / 秒杀 / 特价 / 便宜包邮 / 新人价 | `blacklight`（yx / bybt / jzt / osw / EasyBI） | 停止写操作，`fail --status blocked`，不手拼接口 |
 | 每日工具打卡 | 浏览器 + JoySpace 登录态 | 未实际提问/未保存成功即 `fail`，不得虚假打卡 |
 | 差评治理 | 本机 `京东采销自动化助手_直接提报` | 缺程序或 cookie 过期时 `fail`，附缺失路径/日志 |
-| SPU 看板 | `blacklight` + 本地 Node（看板） | 取数失败如实写「未取到」，不得编数 |
 | 看板采集 | 管理员 Node 服务 | 离线可用，恢复后 `report` 补报 |
 
 ## 强制边界
@@ -193,11 +210,12 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -
 
 ## 相关文件
 
-- `references/task-matrix.md`：PDF 11 项作业的完整映射、负责人、排期、成熟度。
+- `references/task-matrix.md`：PDF 作业的完整映射、负责人、排期、成熟度（默认下发 9 项，2 项已下线）。
 - `references/status-model.md`：状态、指标、上报与看板计算口径。
 - `references/distribution.md`：分发、采集服务部署、权限与安全。
 - `references/capability-boundary.md`：这套工具能做什么、做不到什么、什么时候必须找人。
 - `automation/`：每日常规执行单生成与 Windows 计划任务注册脚本。
 - `data/tasks.json`：唯一任务注册表；改排期/负责人只改这里。
-- `data/roster.json`：7 位采销名册。
+- `data/roster.json`：本机名册（出厂空，`init` 写入本人）；`roster.example.json` 是团队矩阵示例。
+- `发给同事.md`：一页纸的同事安装说明，可直接转发。
 - `dashboard/`：零依赖看板（Node + 原生前端）。

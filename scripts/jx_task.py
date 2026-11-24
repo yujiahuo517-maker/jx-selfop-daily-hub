@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -29,6 +30,10 @@ HOME = Path(os.environ.get("JX_SELFOP_HOME", Path.home() / ".jx-selfop"))
 CONFIG_PATH = HOME / "config.json"
 REPORTS_PATH = HOME / "reports.jsonl"
 SYNC_PATH = HOME / "synced.json"
+
+# 统一的作业完成看板（全员共用，成员装完即指向这里）
+DEFAULT_SERVER = (os.environ.get("JX_BOARD_URL") or "https://jx-selfop-board.joyapp.jd.com").rstrip("/")
+SKILL_ROOTS = [Path.home() / ".joycode" / "skills", Path.home() / ".agents" / "skills"]
 
 STATUS_LABEL = {
     "pending": "未开始",
@@ -228,29 +233,83 @@ def is_overdue(task: dict[str, Any], for_date: Date, status: str, now: datetime 
     return now > due
 
 
+def ensure_roster(person: dict[str, Any]) -> bool:
+    """把本人写进 data/roster.json。
+
+    重装/覆盖安装会带走手工改过的名册，这里做自愈：缺人补人、姓名不一致改名。
+    返回是否发生了写入。
+    """
+    roster = load_roster()
+    target = str(person["erp"]).lower()
+    for item in roster:
+        if str(item.get("erp", "")).lower() == target:
+            changed = False
+            if person.get("name") and item.get("name") != person["name"]:
+                item["name"] = person["name"]
+                changed = True
+            if person.get("team_id") and item.get("team_id") != person["team_id"]:
+                item["team_id"] = person["team_id"]
+                changed = True
+            if changed:
+                _write_json(DATA / "roster.json", roster)
+            return changed
+    roster.append({"name": person["name"], "erp": person["erp"], "team_id": person.get("team_id", "")})
+    _write_json(DATA / "roster.json", roster)
+    return True
+
+
+def rebind_owners(person: dict[str, Any]) -> int:
+    """把负责人专属作业的示例占位 owner 换成本人。
+
+    仓库里的 tasks.json 用 zhangsan1 / lisi2 之类占位，直接发给同事会导致对方看不到
+    超补、秒杀、特价这类 owner 作业。安装时统一指向执行人，返回改动的作业数。
+    scope=all（全员项）和 owners 为空（待指派）的作业不动。
+    """
+    tasks = load_tasks()
+    changed = 0
+    for task in tasks:
+        if task.get("scope") == "all":
+            continue
+        owners = task.get("owners") or []
+        if not owners:
+            continue
+        if [str(erp).lower() for erp in owners] == [str(person["erp"]).lower()] and task.get("owner_label") == person["name"]:
+            continue
+        task["owners"] = [person["erp"]]
+        task["owner_label"] = person["name"]
+        changed += 1
+    if changed:
+        _write_json(DATA / "tasks.json", tasks)
+    return changed
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     person = resolve_person(args.erp, args.name)
     cfg = load_config()
+    server = (args.server or cfg.get("server") or DEFAULT_SERVER).rstrip("/")
     cfg.update(
         {
             "erp": person["erp"],
             "name": person["name"],
             "team_id": person.get("team_id", ""),
-            "server": (args.server or cfg.get("server", "")).rstrip("/"),
+            "server": server,
             "ingest_token": (args.token or cfg.get("ingest_token", "")).strip(),
             "installed_at": cfg.get("installed_at") or datetime.now().isoformat(timespec="seconds"),
         }
     )
     save_config(cfg)
     HOME.mkdir(parents=True, exist_ok=True)
+    ensure_roster(person)
+    rebound = rebind_owners(person)
     print(f"已初始化：{person['name']}（{person['erp']}）")
     print(f"本地数据目录：{HOME}")
-    if cfg.get("server"):
-        print(f"管理员采集地址：{cfg['server']}")
-    else:
-        print("未配置管理员采集地址：可在 init 时加 --server http://<管理员IP>:8080，或稍后修改 config.json。")
+    print(f"作业完成看板：{server}")
+    if rebound:
+        print(f"已把 {rebound} 项负责人专属作业指向本人（示例占位已替换）")
     if cfg.get("ingest_token"):
-        print("已配置上报令牌：report 会走线上看板的令牌通道。")
+        print("已配置上报令牌：done/fail 会自动汇总到线上看板")
+    else:
+        print("未配置上报令牌：本地留痕照常，线上看板不会汇总；向管理员要本 ERP 的令牌后重跑 init --token <令牌>")
     return 0
 
 
@@ -553,6 +612,106 @@ def cmd_report(args: argparse.Namespace) -> int:
     if not args.quiet:
         print(f"上报完成：{ok}/{len(pending)}。")
     return 0 if ok == len(pending) else 2
+
+
+def _http_probe(url: str, timeout: float = 6.0) -> tuple[bool, str]:
+    """探活：只要服务应答（含 4xx）就算可达，网络不通才算不可达。"""
+    try:
+        request = urllib.request.Request(url, method="GET", headers={"User-Agent": "jx-selfop-doctor"})
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return True, f"HTTP {response.status}"
+    except urllib.error.HTTPError as exc:
+        return True, f"HTTP {exc.code}"
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return False, str(exc)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """安装自检：Python / Node / 名册 / 作业清单 / 看板可达 / 上报令牌 / 依赖技能。"""
+    problems: list[str] = []
+
+    def ok(label: str, detail: str) -> None:
+        print(f"[ok]   {label}：{detail}")
+
+    def warn(label: str, detail: str) -> None:
+        print(f"[warn] {label}：{detail}")
+
+    def bad(label: str, detail: str) -> None:
+        problems.append(label)
+        print(f"[fail] {label}：{detail}")
+
+    version = ".".join(str(part) for part in sys.version_info[:3])
+    if sys.version_info[:2] >= (3, 10):
+        ok("Python", version)
+    else:
+        bad("Python", f"{version}，需要 3.10+（建议 3.11+）")
+
+    node = shutil.which("node")
+    if node:
+        try:
+            raw = subprocess.run([node, "-v"], capture_output=True, text=True, timeout=20).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            raw = "未知"
+        major_text = raw.lstrip("v").split(".")[0]
+        major = int(major_text) if major_text.isdigit() else 0
+        if major >= 18:
+            ok("Node", f"{raw}（仅看板需要）")
+        else:
+            warn("Node", f"{raw}，看板需要 18+；日常留痕不依赖它")
+    else:
+        warn("Node", "未安装；只有本地看板/云端部署需要，日常留痕不依赖它")
+
+    cfg = load_config()
+    if cfg.get("erp"):
+        ok("执行人", f"{cfg.get('name', '')}（{cfg['erp']}）")
+    else:
+        bad("执行人", "未初始化，先跑 install.ps1 -Erp <ERP> -Name <姓名>")
+
+    erp = str(cfg.get("erp", "")).lower()
+    roster = load_roster()
+    myself = next((p for p in roster if str(p.get("erp", "")).lower() == erp), None)
+    if myself:
+        ok("名册", f"{len(roster)} 人，含本人")
+    else:
+        warn("名册", f"{len(roster)} 人，不含本人；重跑 init 会自愈写入")
+
+    tasks = load_tasks()
+    if tasks:
+        p0 = sum(1 for task in tasks if task.get("priority") == "P0")
+        ok("作业清单", f"{len(tasks)} 项（P0 {p0} 项）")
+    else:
+        bad("作业清单", "data/tasks.json 为空")
+
+    server = (args.server or cfg.get("server") or "").rstrip("/")
+    if server:
+        reachable, detail = _http_probe(server + "/api/health")
+        if reachable and detail in ("HTTP 401", "HTTP 403"):
+            ok("看板", f"{server}（{detail}，需登录态/令牌，属正常）")
+        elif reachable:
+            ok("看板", f"{server}（{detail}）")
+        else:
+            warn("看板", f"{server} 不可达：{detail}；本地留痕照常，恢复后跑 report 补报")
+    else:
+        warn("看板", "未配置采集地址，可跑 init --server <看板地址>")
+
+    if cfg.get("ingest_token"):
+        ok("上报令牌", "已配置")
+    else:
+        warn("上报令牌", "未配置；线上看板不会自动汇总（向管理员要本 ERP 的令牌）")
+
+    for dep in ("blacklight", "yx-mcp"):
+        found = next((str(root / dep) for root in SKILL_ROOTS if (root / dep).exists()), "")
+        if found:
+            ok(f"依赖技能 {dep}", found)
+        else:
+            warn(f"依赖技能 {dep}", "未安装；用到它的作业会被标 blocked，不会猜数")
+
+    print("-" * 72)
+    if problems:
+        print("自检未通过：" + "；".join(problems))
+        return 2
+    print("自检通过：下一步跑 python scripts/jx_task.py plan")
+    return 0
 
 
 def cmd_token(args: argparse.Namespace) -> int:
@@ -955,6 +1114,10 @@ def build_parser() -> argparse.ArgumentParser:
     whoami = sub.add_parser("whoami", help="查看当前配置")
     whoami.add_argument("--json", action="store_true")
     whoami.set_defaults(func=cmd_whoami)
+
+    doctor = sub.add_parser("doctor", help="安装自检：Python / Node / 名册 / 看板 / 令牌 / 依赖")
+    doctor.add_argument("--server", default="")
+    doctor.set_defaults(func=cmd_doctor)
 
     today = sub.add_parser("today", help="查看本人今日作业")
     today.add_argument("--date")

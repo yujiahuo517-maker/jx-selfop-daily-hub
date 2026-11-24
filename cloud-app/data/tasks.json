@@ -46,46 +46,6 @@
     "summary": "只报本人名下 SKU；普通品毛利≥5%，有广告叠加≥20%；库存 10000；禁止并发、禁止只信回执。"
   },
   {
-    "id": "ad_profit_guard",
-    "seq": 2,
-    "name": "广告入池与出池监控",
-    "category": "每日固定作业",
-    "priority": "P0",
-    "owners": [
-      "lisi2"
-    ],
-    "owner_label": "李四",
-    "scope": "owner",
-    "schedule": {
-      "type": "daily",
-      "time": "09:00",
-      "grace_minutes": 60
-    },
-    "schedule_label": "每天 09:00（T-1 数据）",
-    "source_skill": "blacklight（黄金眼 / EasyBI / 京准通）+ JoySpace + 京ME",
-    "dependencies": [
-      "blacklight",
-      "joyspace-create-doc"
-    ],
-    "sop": "references/sop/02-ad-profit-guard.md",
-    "completion": [
-      "筛出投前履约毛利率<0 且在投商品",
-      "逐项 dry-run 后停投并回读状态",
-      "JoySpace 明细表已建、已按群权限共享",
-      "群 <你的京ME群号> 汇总消息与 @ 回执"
-    ],
-    "metrics": [
-      "筛出数",
-      "本次新停数",
-      "操作前已暂停数",
-      "失败数"
-    ],
-    "count_in_rate": false,
-    "auto": true,
-    "status": "ready",
-    "summary": "你的采销组负毛利在投广告止损；先核对计划映射，再预演、停投、逐项回读，禁止把受理当生效。"
-  },
-  {
     "id": "flash_sale",
     "seq": 3,
     "name": "秒杀提报",
@@ -106,6 +66,8 @@
     "resource_id": 2858,
     "area_id": 313601,
     "activity_id": "101666814",
+    "batch_session": "20:00:00",
+    "activity_duration": "24",
     "channel": "京喜自营",
     "apply_sku_type": "3",
     "dependencies": [
@@ -274,53 +236,6 @@
     "auto": true,
     "status": "ready",
     "summary": "调用 venv python main.py --fast-chaping --real-submit --max-pages 0；禁止管道喂 2/0；bat 必须 ANSI/GBK。"
-  },
-  {
-    "id": "spu_daily_drop_board",
-    "seq": 7,
-    "name": "SPU 每日骤降 + 机会看板",
-    "category": "每日损益监控",
-    "priority": "P0",
-    "owners": [
-      "zhouba6",
-      "zhangsan1",
-      "wangwu3",
-      "zhengjiu7",
-      "zhaoliu4",
-      "lisi2",
-      "sunqi5"
-    ],
-    "owner_label": "全员（PDF 未指定负责人）",
-    "scope": "all",
-    "schedule": {
-      "type": "daily",
-      "time": "09:30",
-      "grace_minutes": 120
-    },
-    "schedule_label": "每天 09:30",
-    "source_skill": "blacklight（EasyBI 1025136 / osw_pricing_query）",
-    "dependencies": [
-      "blacklight"
-    ],
-    "sop": "references/sop/07-spu-daily-drop-board.md",
-    "completion": [
-      "按 T+1 口径完成取数与分页一致性核验",
-      "骤降/机会判定与证据回查完成",
-      "对话输出四块日报",
-      "本地网页看板已更新并可改状态"
-    ],
-    "metrics": [
-      "昨日销量",
-      "昨日GMV",
-      "昨日UV",
-      "骤降数",
-      "机会数",
-      "待处理数"
-    ],
-    "count_in_rate": false,
-    "auto": true,
-    "status": "ready",
-    "summary": "销量/GMV/UV 任一降幅>30% 且有基数才算；原因只能落 8 类；商品归属变更单独归类。"
   },
   {
     "id": "cheap_free_shipping",

@@ -11,25 +11,26 @@ jx-selfop-daily-hub/
   install.ps1
   start-dashboard.ps1
   data/tasks.json          # 任务注册表（管理员统一维护）
-  data/roster.json         # 7 人名册
+  data/roster.json         # 本机名册（出厂空，安装时写入本人）
   scripts/jx_task.py       # 执行留痕 CLI
   dashboard/               # 零依赖看板
-  references/              # 11 项 SOP 与口径
+  references/              # 逐项 SOP 与口径（默认 9 项）
 ```
 
 ## 二、成员安装（每人一次）
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1 `
-  -Erp <ERP> -Name <姓名> -Server http://<管理员IP>:8080
+  -Erp <ERP> -Name <姓名>   # 看板地址默认 https://jx-selfop-board.joyapp.jd.com
 ```
 
 脚本动作：
 
 1. 复制到 `%USERPROFILE%\.joycode\skills\jx-selfop-daily-hub`。
-2. 写入 `%USERPROFILE%\.jx-selfop\config.json`。
-3. 运行一次 `whoami` 验证。
-4. 不安装任何第三方依赖；Python 3.11+ 即可。
+2. 写入 `%USERPROFILE%\.jx-selfop\config.json`（看板地址默认通用看板）。
+3. 把本人写进 `data/roster.json`，并把负责人专属作业的 `owners` 指向本人。
+4. 运行一次 `doctor` 自检（Python / Node / 名册 / 看板可达 / 令牌 / 依赖技能）。
+5. 不安装任何第三方依赖；Python 3.11+ 即可，Node 只有本机看板需要。
 
 成员每天：
 
@@ -161,7 +162,7 @@ node dashboard/export-static.js --out dashboard-demo.html --demo       # 演示�
 | 项 | 值 |
 |---|---|
 | appCode / projectId | `<你的应用码>` / `<你的项目 ID>` |
-| 地址 | https://<你的应用名>.joyapp.jd.com |
+| 地址 | **https://jx-selfop-board.joyapp.jd.com**（全员共用，已内置为安装默认值） |
 | 门户 | https://<你的门户域名>/app/<你的应用码>/ |
 | 页面 | `/` 实时矩阵（60 秒刷新）· `/full.html` 完整快照 · `/demo.html` 演示快照 |
 | 数据 | 平台共享分库 `jx-selfop-board.db`（2 号底座），重部署不丢 |
@@ -171,8 +172,7 @@ node dashboard/export-static.js --out dashboard-demo.html --demo       # 演示�
 成员改成上报线上（每人一次；`Token` 由管理员按 ERP 生成）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> `
-  -Server https://<你的应用名>.joyapp.jd.com -Token <本人令牌>
+powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <本人令牌>
 ```
 
 管理员生成令牌（`INGEST_SECRET` 只在本机 `publish/ingest-secret.txt` 与平台 `deployEnv`，不要外发）：

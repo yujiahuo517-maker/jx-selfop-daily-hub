@@ -18,9 +18,11 @@
 | 定期布置的作业 | 售后订单 & 未合单 & 直赔订单 & 手工补单运费回收 | P1 | PDF 未指定 | 按通知 | `aftersale_recovery` |
 | 定期布置的作业 | 符合新人价标准的 SKU 提报 | P1 | PDF 未指定 | 按通知 | `newcomer_price` |
 
-合计 **11 项**：7 项 P0 + 4 项 P1。
+PDF 原文合计 **11 项**：7 项 P0 + 4 项 P1。**本技能默认下发 9 项**（5 项 P0 + 4 项 P1）：
+2026-11-24 起下线 `ad_profit_guard`（广告入池 & 出池监控）与 `spu_daily_drop_board`（SPU 每日骤降 + 机会看板），
+上表保留 PDF 原貌供对照，SOP 存档在 `references/sop/_retired/`。
 
-> **看板计入口径（2026-11-20 起）**：每日只把这 4 项计入完成率与矩阵——`super_subsidy`（超补）、`flash_sale`（秒杀）、`bad_review_appeal`（差评）、`daily_tool_checkin`（每日工具使用）。`ad_profit_guard`、`spu_daily_drop_board` 等标记 `count_in_rate=false` 的作业仍可按 SOP 执行并 `done` 留痕，但不进完成率（矩阵 7 人 × 4 项 = 16 格）。
+> **看板计入口径（2026-11-20 起）**：每日计入完成率与矩阵的是 `count_in_rate=true` 的 5 项——`super_subsidy`（超补）、`flash_sale`（秒杀）、`tejia_weekly`（特价）、`bad_review_appeal`（差评）、`daily_tool_checkin`（每日工具使用）。矩阵格数 = 名册人数 × 当日命中的计入项；`count_in_rate=false` 的作业（官方直降打标 / 售后回收 / 新人价）只留痕、不上矩阵。
 
 ## 二、执行范围的处理
 
@@ -29,12 +31,12 @@ PDF 的「负责人」是**流程负责人**，不等于作业只由该一人执
 | task_id | 执行范围 | 判断依据 |
 |---|---|---|
 | `super_subsidy` | 仅张三本人 | 提示词明确「只处理当前 ERP zhangsan1 本人名下」 |
-| `ad_profit_guard` | 李四执行，覆盖你的采销组各采销 | 提示词查询「你的采销组各采销名下」，停投后 @ 涉及采销 |
+| ~~`ad_profit_guard`~~ | 已下线（2026-11-24）；原为李四执行、覆盖采销组各采销 | 历史口径：提示词查询「你的采销组各采销名下」，停投后 @ 涉及采销 |
 | `flash_sale` | 张三 | 2026-11-20 起执行人调整为张三 |
 | `tejia_weekly` | 张三本人 | 提示词要求「按本人商品档交叉过滤」 |
 | `daily_tool_checkin` | 7 位采销全员 | 提示词要求把【姓名】替换成同事姓名，逐人打卡 |
 | `bad_review_appeal` | 7 位采销全员 | 每天配置在「本机」执行，申诉对象为本人店铺 |
-| `spu_daily_drop_board` | 7 位采销全员 | 提示词要求填本人 ERP、只看本人名下 `cate_op_erp` |
+| ~~`spu_daily_drop_board`~~ | 已下线（2026-11-24）；原为 7 位采销全员 | 历史口径：提示词要求填本人 ERP、只看本人名下 `cate_op_erp` |
 | `cheap_free_shipping` | 张三 | PDF 指定负责人；频次未写明 |
 | `official_discount_mark` | 待指派 | PDF 负责人为空 |
 | `aftersale_recovery` | 待指派 | PDF 负责人为空 |
@@ -44,7 +46,7 @@ PDF 的「负责人」是**流程负责人**，不等于作业只由该一人执
 
 | 等级 | 作业 | 说明 |
 |---|---|---|
-| A：SOP 完整，可直接执行 | 超级补贴、广告止损、秒杀、特价、每日打卡、差评治理、SPU 看板 | PDF 提供了参数、规则、回读口径 |
+| A：SOP 完整，可直接执行 | 超级补贴、秒杀、特价、每日打卡、差评治理 | PDF 提供了参数、规则、回读口径 |
 | B：规则可复用，需负责人确认 | 便宜包邮 5.9-5 / 4.9-4 | PDF 只给名称；复用特价后续券池的两条承担公式，默认随周一 |
 | C：只有作业名，需补 SOP | 官方直降打标 & 国补 & 9 折、售后 & 未合单 & 直赔 & 运费回收、新人价 SKU | 禁止猜测执行；先补负责人和 SOP |
 

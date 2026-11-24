@@ -41,7 +41,7 @@
 
 - 全员 2 项 × 7 人 = 14：每日工具打卡、差评治理。
 - 单人 2 项：超级补贴（张三）、秒杀（张三）。
-- `ad_profit_guard`（广告入池出池）、`spu_daily_drop_board`（SPU 骤降）等 `count_in_rate=false` 的作业**只落库留痕，不计入完成率与看板矩阵**（2026-11-20 起口径）。
+- `official_discount_mark` / `aftersale_recovery` / `newcomer_price` 等 `count_in_rate=false` 的作业**只落库留痕，不计入完成率与看板矩阵**（2026-11-20 起口径；原 `ad_profit_guard`、`spu_daily_drop_board` 已于 2026-11-24 下线）。
 - 特价只在周一命中；便宜包邮默认只在周一命中。
 
 ## 三、完成率
