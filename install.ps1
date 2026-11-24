@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $false)][string]$Erp = "",
   [Parameter(Mandatory = $false)][string]$Name = "",
   [Parameter(Mandatory = $false)][string]$Server = "https://jx-selfop-board.joyapp.jd.com",
@@ -93,7 +93,13 @@ if (-not $NoInit) {
     if ($Token) { $initArgs += @("--token", $Token) }
     & $python @initArgs
     if ($LASTEXITCODE -ne 0) { throw "初始化失败，退出码 $LASTEXITCODE" }
-    if (-not $Token) {
+    # 已有令牌（上次装过）时不再重复提示
+    $cfgPath = Join-Path $env:USERPROFILE ".jx-selfop\config.json"
+    $hasToken = $false
+    if (Test-Path -LiteralPath $cfgPath) {
+      $hasToken = (Get-Content -LiteralPath $cfgPath -Raw) -match '"ingest_token"\s*:\s*"[^"]+"'
+    }
+    if (-not $hasToken) {
       Write-Host ""
       Write-Host "提示：还没配置上报令牌，线上看板不会自动汇总你的记录。" -ForegroundColor Yellow
       Write-Host ('      向管理员要本 ERP 的令牌，再跑一次：install.ps1 -Erp ' + $Erp + ' -Name ' + $Name + ' -Token <令牌>')
