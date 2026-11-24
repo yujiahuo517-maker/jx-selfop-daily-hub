@@ -34,15 +34,16 @@
 
 1. 遍历 `data/tasks.json`。
 2. 排期命中：`daily` 每天命中；`weekly` 在 `weekday_iso` 命中；`periodic` 默认不进入每日应完成口径。
-3. 展开人员：`scope=all` 展开为 7 位采销；`scope=owner` 展开为 `owners` 中的人。
+3. 展开人员：`scope=all` 展开为 `data/roster.json` 里的全体成员；`scope=owner` 展开为 `owners` 中的人。
 4. 得到 `(task, person)` 对，即为当天应完成清单。
 
-示例：2026-11-19 是周四，命中 6 类作业、24 个应完成项：
+示例（设名册 N 人）：
 
-- 全员 2 项 × 7 人 = 14：每日工具打卡、差评治理。
-- 单人 2 项：超级补贴（张三）、秒杀（张三）。
+- 全员项 2 个 × N 人 = 2N：每日工具打卡、差评治理。
+- 负责人专属项：超级补贴、秒杀、特价，只落在 `owners` 指定的人身上。
+- 应完成项合计 = 2N + 当日命中作业的负责人数。
 - `official_discount_mark` / `aftersale_recovery` / `newcomer_price` 等 `count_in_rate=false` 的作业**只落库留痕，不计入完成率与看板矩阵**（2026-11-20 起口径；原 `ad_profit_guard`、`spu_daily_drop_board` 已于 2026-11-24 下线）。
-- 特价只在周一命中；便宜包邮默认只在周一命中。
+- 特价与便宜包邮默认只在周一命中。
 
 ## 三、完成率
 
