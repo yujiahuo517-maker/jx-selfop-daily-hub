@@ -653,6 +653,7 @@ def _post_usage(server: str, erp: str, token: str, payload: dict[str, Any], time
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     # 本机没有 SSO Cookie，平台守卫只放行 /api/tunnel/*；老版本看板没有这个路径时回落到 /api/usage
     last: tuple[bool, str] = (False, "")
+    tunnel_missing = False
     for path in ("/api/tunnel/usage", "/api/usage"):
         request = urllib.request.Request(
             server + path,
@@ -672,10 +673,15 @@ def _post_usage(server: str, erp: str, token: str, payload: dict[str, Any], time
         except urllib.error.HTTPError as exc:
             last = (False, f"HTTP {exc.code}")
             if exc.code in (404, 405):
+                tunnel_missing = tunnel_missing or path == "/api/tunnel/usage"
                 continue
+            if tunnel_missing:
+                return False, f"{last[1]}（看板是旧版本，没有 /api/tunnel/usage，需重新部署后心跳才落库）"
             return last
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             return False, str(exc)
+    if tunnel_missing:
+        return False, f"{last[1]}（看板是旧版本，没有 /api/tunnel/usage，需重新部署后心跳才落库）"
     return last
 
 
