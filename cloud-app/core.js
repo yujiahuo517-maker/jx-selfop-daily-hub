@@ -37,6 +37,31 @@ const TASKS = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'tasks.json'), 'utf
 const ROSTER = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'roster.json'), 'utf8'));
 const TASK_BY_ID = new Map(TASKS.map((task) => [task.id, task]));
 
+// 动态成员：自助领取令牌 / 首次上报时由数据层 members 表补充，不必改 roster.json 重部署
+let MEMBERS = [];
+function setMembers(list) {
+  MEMBERS = Array.isArray(list) ? list : [];
+}
+
+function roster() {
+  const seen = new Set(ROSTER.map((person) => String(person.erp).toLowerCase()));
+  const out = ROSTER.slice();
+  for (const item of MEMBERS) {
+    const erp = String((item && item.erp) || '').toLowerCase();
+    if (!/^[a-z0-9._-]{2,40}$/.test(erp) || seen.has(erp)) continue;
+    seen.add(erp);
+    out.push({
+      erp,
+      name: String((item && item.name) || erp),
+      team_id: '',
+      enrolled: true,
+      source: String((item && item.source) || ''),
+      first_seen: String((item && item.first_seen) || ''),
+    });
+  }
+  return out;
+}
+
 function isoDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -101,10 +126,10 @@ function timeValue(record) {
 }
 
 function ownersFor(task) {
-  if (task.scope === 'all') return ROSTER;
+  if (task.scope === 'all') return roster();
   const owners = [];
   for (const erp of task.owners || []) {
-    const person = ROSTER.find((p) => p.erp.toLowerCase() === String(erp).toLowerCase());
+    const person = roster().find((p) => p.erp.toLowerCase() === String(erp).toLowerCase());
     owners.push(person || { name: erp, erp, team_id: '' });
   }
   return owners;
@@ -167,7 +192,7 @@ function cellFor(record) {
   };
 }
 
-function buildDashboard(dateText, days, useDemo) {
+function buildDashboard(dateText, days, useDemo, usageByErp) {
   const end = parseDate(dateText);
   const start = addDays(end, -(days - 1));
   const latest = loadRecords(useDemo);
@@ -232,7 +257,8 @@ function buildDashboard(dateText, days, useDemo) {
     });
   }
 
-  for (const person of ROSTER) {
+  for (const person of roster()) {
+    const usage = usageByErp ? usageByErp[String(person.erp).toLowerCase()] : null;
     personIndex.set(person.erp, {
       erp: person.erp,
       name: person.name,
@@ -241,6 +267,8 @@ function buildDashboard(dateText, days, useDemo) {
       failed: 0,
       overdue: 0,
       rate: 0,
+      enrolled: Boolean(person.enrolled),
+      usage: usage || null,
       cells: {},
     });
   }
@@ -349,8 +377,9 @@ function buildDashboard(dateText, days, useDemo) {
       failed: todayRow.failed,
       overdue: todayRow.overdue,
       rate: todayRow.rate,
-      people_total: ROSTER.length,
+      people_total: roster().length,
       people_reported: reportedPeople,
+      people_active: matrixPeople.filter((person) => person.usage && Number(person.usage.count) > 0).length,
       tasks_total: matrixTasks.length,
     },
     matrix: { tasks: matrixTasks, people: matrixPeople },
@@ -417,4 +446,20 @@ function buildCsv(dateText, days, useDemo) {
   return '\ufeff' + rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
 }
 
-module.exports = { buildDashboard, buildCsv, isoDate, parseDate, addDays, expectedPairs, trackedPairs, isTracked, TASKS, ROSTER, TASK_BY_ID, STATUS_LABEL, setRecords };
+module.exports = {
+  buildDashboard,
+  buildCsv,
+  isoDate,
+  parseDate,
+  addDays,
+  expectedPairs,
+  trackedPairs,
+  isTracked,
+  roster,
+  setMembers,
+  TASKS,
+  ROSTER,
+  TASK_BY_ID,
+  STATUS_LABEL,
+  setRecords,
+};

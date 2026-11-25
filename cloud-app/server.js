@@ -25,7 +25,67 @@ const ADMIN_ERPS = String(process.env.ADMIN_ERPS || 'zhangsan1')
   .filter(Boolean);
 
 const STATUSES = ['pending', 'running', 'done', 'failed', 'blocked', 'skipped'];
-const ROSTER_BY_ERP = new Map(core.ROSTER.map((person) => [String(person.erp).toLowerCase(), person]));
+
+// 名册 = 静态 roster.json ∪ 数据层 members（自助领取令牌 / 首次上报自动登记）
+let MEMBERS = [];
+function rosterMap() {
+  const map = new Map();
+  for (const person of core.roster()) map.set(String(person.erp).toLowerCase(), person);
+  return map;
+}
+
+async function refreshMembers() {
+  try {
+    MEMBERS = await store.members();
+    core.setMembers(MEMBERS);
+  } catch (error) {
+    console.error('[members] 加载成员失败：', error.message);
+  }
+  return MEMBERS;
+}
+
+async function enroll(erp, name, source) {
+  const key = String(erp || '').toLowerCase();
+  if (!/^[a-z0-9._-]{2,40}$/.test(key)) return false;
+  if (rosterMap().has(key)) return false;
+  await store.upsertMember({ erp: key, name: String(name || key), source: source || 'report' });
+  await refreshMembers();
+  return true;
+}
+
+function headerName(req) {
+  try {
+    return decodeURIComponent(String(req.headers['x-user-name'] || '').trim()).slice(0, 40);
+  } catch (error) {
+    return '';
+  }
+}
+
+async function usageMapFor(dateText) {
+  const out = {};
+  try {
+    for (const row of await store.usageSince(dateText)) {
+      if (row.date !== dateText) continue;
+      let deps = row.deps;
+      try {
+        deps = JSON.parse(row.deps);
+      } catch (error) {
+        /* 保留原始字符串 */
+      }
+      out[row.erp] = {
+        count: Number(row.count) || 0,
+        last_at: row.last_at,
+        command: row.command,
+        skill_version: row.skill_version,
+        deps,
+        os_name: row.os_name,
+      };
+    }
+  } catch (error) {
+    console.error('[usage] 读取失败：', error.message);
+  }
+  return out;
+}
 
 const records = [];
 core.setRecords(records, []);
@@ -79,6 +139,12 @@ function sanitizeFields(input, max) {
   return out;
 }
 
+// 心跳里的 deps 是字符串数组（如 ["blacklight"]），不能走 sanitizeFields 变成对象
+function sanitizeList(input, max) {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 20).map((item) => clip(item, max)).filter(Boolean);
+}
+
 function tokenFor(erp) {
   if (!SECRET) return '';
   return crypto.createHmac('sha256', SECRET).update(String(erp).toLowerCase()).digest('hex').slice(0, 32);
@@ -127,9 +193,8 @@ async function acceptReport(req, via) {
     }
   }
 
-  if (!ROSTER_BY_ERP.has(identity) && !ADMIN_ERPS.includes(identity)) {
-    return { status: 403, body: { ok: false, error: '不在团队名册，无法上报' } };
-  }
+  // 首次上报即自助入册（令牌/SSO 已证明是本人），不用管理员改名册再重部署
+  const enrolled = await enroll(identity, clip(payload.name, 40), via === 'sso' ? 'sso' : 'report');
 
   const taskId = clip(payload.task_id, 60);
   if (!core.TASK_BY_ID.has(taskId)) return { status: 400, body: { ok: false, error: '未知 task_id' } };
@@ -146,10 +211,16 @@ async function acceptReport(req, via) {
     return { status: 403, body: { ok: false, error: '只能上报本人作业' } };
   }
   const erp = claimed || identity;
-  if (!ROSTER_BY_ERP.has(erp)) return { status: 403, body: { ok: false, error: '目标 ERP 不在名册' } };
+  const people = rosterMap();
+  if (!people.has(erp)) return { status: 403, body: { ok: false, error: '目标 ERP 不在名册' } };
 
   const assignment = assignmentOf(taskId, erp, dateText);
-  if (!assignment) return { status: 400, body: { ok: false, error: '该作业不在该成员当日排期' } };
+  if (!assignment) {
+    return {
+      status: 400,
+      body: { ok: false, error: '该作业不在该成员当日排期（新人先做全员项：每日工具使用、差评治理）' },
+    };
+  }
 
   const summary = clip(payload.summary, 2000);
   const metrics = sanitizeFields(payload.metrics, 300);
@@ -160,7 +231,7 @@ async function acceptReport(req, via) {
   }
 
   const now = new Date().toISOString();
-  const person = ROSTER_BY_ERP.get(erp);
+  const person = people.get(erp) || { erp, name: erp };
   const task = assignment.task;
   const record = {
     id: `${dateText}:${taskId}:${erp}`,
@@ -188,7 +259,7 @@ async function acceptReport(req, via) {
 
   await store.insert(record);
   records.push(record);
-  return { status: 200, body: { ok: true, id: record.id, erp, date: dateText, status } };
+  return { status: 200, body: { ok: true, id: record.id, erp, date: dateText, status, enrolled } };
 }
 
 const MIME = {
@@ -240,21 +311,52 @@ async function handle(req, res) {
         error: '未取到登录身份：请从内部门户打开本页，不要直接从外部浏览器访问',
       });
     }
-    const person = ROSTER_BY_ERP.get(identity);
-    if (!person) {
-      return sendJson(res, 403, {
-        ok: false,
-        error: '你还不在看板名册里：请把 ERP 发给管理员登记后重试',
-        erp: identity,
-      });
-    }
+    // 不在名册也发令牌：领到的同时自动入册，管理员不用再改名册重部署
+    const person = rosterMap().get(identity);
+    const enrolled = person ? false : await enroll(identity, headerName(req), 'token');
+    const name = person ? person.name : headerName(req) || identity;
     return sendJson(res, 200, {
       ok: true,
       erp: identity,
-      name: person.name,
+      name,
       token: tokenFor(identity),
       board: '/',
+      enrolled,
     });
+  }
+
+  // 使用心跳：装了技能、每次用它就自动打点一次；只表示「在用」，不代表作业完成
+  // /api/tunnel/usage 是给成员本机用的：平台 SSO 守卫只放行 /api/tunnel/*，本机没有 SSO Cookie
+  if ((pathname === '/api/usage' || pathname === '/api/tunnel/usage') && req.method === 'POST') {
+    const erp = String(req.headers['x-ingest-erp'] || '').trim().toLowerCase();
+    if (!erp) return sendJson(res, 401, { ok: false, error: '缺少 X-Ingest-Erp' });
+    if (!SECRET) return sendJson(res, 503, { ok: false, error: '服务未配置上报密钥' });
+    if (!safeEqual(tokenFor(erp), String(req.headers['x-ingest-token'] || '').trim())) {
+      return sendJson(res, 401, { ok: false, error: '上报令牌无效' });
+    }
+    let payload;
+    try {
+      payload = JSON.parse((await readBody(req)) || '{}');
+    } catch (error) {
+      return sendJson(res, 400, { ok: false, error: 'JSON 解析失败' });
+    }
+    const enrolled = await enroll(erp, clip(payload.name, 40), 'usage');
+    const rawDate = String(payload.date || '');
+    const dateText = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : isoDate(new Date());
+    await store.bumpUsage({
+      erp,
+      date: dateText,
+      command: clip(payload.command, 40),
+      skill_version: clip(payload.skill_version, 20),
+      deps: sanitizeList(payload.deps, 40),
+      os_name: clip(payload.os_name, 40),
+    });
+    return sendJson(res, 200, { ok: true, erp, date: dateText, enrolled });
+  }
+
+  if (pathname === '/api/usage' && req.method === 'GET') {
+    const dateText = url.searchParams.get('date') || isoDate(new Date());
+    return sendJson(res, 200, { ok: true, date: dateText, usage: await usageMapFor(dateText) });
   }
 
   if (pathname === '/api/report' && req.method === 'POST') {
@@ -271,11 +373,12 @@ async function handle(req, res) {
     const dateText = url.searchParams.get('date') || isoDate(new Date());
     const days = Math.max(1, Math.min(60, Number(url.searchParams.get('days') || 1)));
     const demo = url.searchParams.get('demo') === '1';
-    return sendJson(res, 200, core.buildDashboard(dateText, days, demo));
+    const usage = await usageMapFor(dateText);
+    return sendJson(res, 200, core.buildDashboard(dateText, days, demo, usage));
   }
 
   if (pathname === '/api/tasks') return sendJson(res, 200, { tasks: core.TASKS });
-  if (pathname === '/api/roster') return sendJson(res, 200, { roster: core.ROSTER });
+  if (pathname === '/api/roster') return sendJson(res, 200, { roster: core.roster() });
 
   if (pathname === '/api/admin/delete' && req.method === 'POST') {
     const identity = identityOf(req);
@@ -330,6 +433,8 @@ async function boot() {
   } catch (error) {
     console.error('[boot] 数据层加载失败，先以空数据启动：', error.message);
   }
+  const list = await refreshMembers();
+  console.log(`[boot] 成员 ${core.roster().length} 人（静态 ${core.ROSTER.length} + 自助入册 ${Math.max(0, core.roster().length - core.ROSTER.length)}，数据层成员 ${list.length}）`);
   server.listen(PORT, HOST, () => {
     console.log(`自营作业完成看板（实时版）已启动：http://0.0.0.0:${PORT}/ · 数据层=${store.usingDataLayer}`);
   });

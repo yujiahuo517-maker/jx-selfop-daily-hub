@@ -17,3 +17,7 @@ credentials*.json
 _env.js
 _data_client.js
 _ssa_guard.js
+
+# 本机自测产生的心跳/成员缓存，不要提交
+cloud-app/data/*.local.json
+cloud-app/data/*.local.jsonl

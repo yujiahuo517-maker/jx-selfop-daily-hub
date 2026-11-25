@@ -31,6 +31,14 @@
     return status === 'done' || status === 'skipped';
   }
 
+  // 心跳时间戳（ISO）→ 本地 HH:MM，用来展示「今天几点还在用」
+  function clockOf(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
   function kvText(obj) {
     if (!obj) return '';
     var keys = Object.keys(obj);
@@ -126,7 +134,8 @@
 
     document.getElementById('dateLabel').textContent = prettyDate(data.date || date);
     document.getElementById('rateLabel').textContent =
-      (kpis.done || 0) + '/' + (kpis.expected || 0) + ' · ' + (kpis.rate || 0) + '%';
+      (kpis.done || 0) + '/' + (kpis.expected || 0) + ' · ' + (kpis.rate || 0) + '%' +
+      (kpis.people_active === undefined ? '' : ' · 在用 ' + (kpis.people_active || 0) + ' 人');
 
     if (SNAPSHOT) {
       var pill = document.getElementById('livePill');
@@ -160,6 +169,20 @@
       text.appendChild(el('b', null, person.name));
       text.appendChild(el('small', null, person.erp));
       text.appendChild(el('small', null, (person.done || 0) + '/' + (person.expected || 0) + ' · ' + (person.rate || 0) + '%'));
+      // 使用情况：心跳自动上报，和作业完成分开看
+      var use = person.usage;
+      var used = use && Number(use.count) > 0;
+      var useEl = el(
+        'small',
+        used ? 'use use-on' : 'use use-off',
+        used ? '今日已用 ' + Number(use.count) + ' 次' + (clockOf(use.last_at) ? ' · ' + clockOf(use.last_at) : '') : '今日未用技能'
+      );
+      var tip = [];
+      if (use && use.skill_version) tip.push('技能 v' + use.skill_version);
+      if (use && use.command) tip.push('最近命令 ' + use.command);
+      if (person.enrolled) tip.push('自助入册（首次领令牌/上报自动登记）');
+      if (tip.length) useEl.title = tip.join(' · ');
+      text.appendChild(useEl);
       inner.appendChild(text);
       who.appendChild(inner);
       tr.appendChild(who);
@@ -196,7 +219,8 @@
       ? (SNAPSHOT.demo ? '只读演示快照（示例数据，不代表真实完成情况）' : '只读快照')
         + ' · 生成于 ' + new Date(SNAPSHOT.generated_at).toLocaleString('zh-CN') + '，不会自动更新'
       : '实时数据 · 每 60 秒自动刷新 · 成员留痕后自动出现')
-      + ' · 口径：只认「完成 / 不适用」；逾期 = 超过计划时间 + 宽限仍未留痕。';
+      + ' · 口径：只认「完成 / 不适用」；逾期 = 超过计划时间 + 宽限仍未留痕；'
+      + '「今日已用」= 技能心跳自动上报，只表示在用，不代表该项作业完成。';
   }
 
   function load() {

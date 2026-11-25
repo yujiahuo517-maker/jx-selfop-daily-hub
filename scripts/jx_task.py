@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -30,10 +31,15 @@ HOME = Path(os.environ.get("JX_SELFOP_HOME", Path.home() / ".jx-selfop"))
 CONFIG_PATH = HOME / "config.json"
 REPORTS_PATH = HOME / "reports.jsonl"
 SYNC_PATH = HOME / "synced.json"
+USAGE_PATH = HOME / "usage.json"
+USAGE_OFFLINE_PATH = HOME / "usage_offline.jsonl"
+
+SKILL_VERSION = "1.3.0"
 
 # 统一的作业完成看板（全员共用，成员装完即指向这里）
 DEFAULT_SERVER = (os.environ.get("JX_BOARD_URL") or "https://jx-selfop-board.joyapp.jd.com").rstrip("/")
 SKILL_ROOTS = [Path.home() / ".joycode" / "skills", Path.home() / ".agents" / "skills"]
+DEP_SKILLS = ("blacklight", "yx-mcp")
 
 STATUS_LABEL = {
     "pending": "未开始",
@@ -628,6 +634,120 @@ def _http_probe(url: str, timeout: float = 6.0) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def deps_state() -> dict[str, bool]:
+    return {dep: any((root / dep).exists() for root in SKILL_ROOTS) for dep in DEP_SKILLS}
+
+
+def _usage_target() -> tuple[str, str, str]:
+    """返回 (server, erp, token)；缺任一项返回空串，表示不打点。"""
+    cfg = load_config()
+    server = (str(cfg.get("server") or "") or DEFAULT_SERVER).rstrip("/")
+    erp = str(cfg.get("erp") or "").strip().lower()
+    token = str(cfg.get("ingest_token") or "").strip()
+    if not (server and erp and token):
+        return "", "", ""
+    return server, erp, token
+
+
+def _post_usage(server: str, erp: str, token: str, payload: dict[str, Any], timeout: float = 6.0) -> tuple[bool, str]:
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    # 本机没有 SSO Cookie，平台守卫只放行 /api/tunnel/*；老版本看板没有这个路径时回落到 /api/usage
+    last: tuple[bool, str] = (False, "")
+    for path in ("/api/tunnel/usage", "/api/usage"):
+        request = urllib.request.Request(
+            server + path,
+            data=body,
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "X-Ingest-Erp": erp,
+                "X-Ingest-Token": token,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                if 200 <= response.status < 300:
+                    return True, ""
+                return False, f"HTTP {response.status}"
+        except urllib.error.HTTPError as exc:
+            last = (False, f"HTTP {exc.code}")
+            if exc.code in (404, 405):
+                continue
+            return last
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            return False, str(exc)
+    return last
+
+
+def _flush_usage_queue(server: str, erp: str, token: str) -> None:
+    """把离线积压的心跳补发出去；失败就留在队列里，不阻塞当前命令。"""
+    if not USAGE_OFFLINE_PATH.exists():
+        return
+    try:
+        lines = [line for line in USAGE_OFFLINE_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except OSError:
+        return
+    if not lines:
+        USAGE_OFFLINE_PATH.unlink(missing_ok=True)
+        return
+    remaining: list[str] = []
+    for line in lines[:50]:
+        try:
+            payload = json.loads(line)
+        except Exception:
+            continue
+        ok, _ = _post_usage(server, erp, token, payload, timeout=4.0)
+        if not ok:
+            remaining.append(line)
+    remaining.extend(lines[50:])
+    try:
+        if remaining:
+            USAGE_OFFLINE_PATH.write_text("\n".join(remaining) + "\n", encoding="utf-8")
+        else:
+            USAGE_OFFLINE_PATH.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def usage_heartbeat(command: str) -> None:
+    """技能使用心跳：只表示「今天有人在用」，不代表作业完成。失败静默积压到离线队列。"""
+    if os.environ.get("JX_NO_USAGE", "").strip() in ("1", "true", "yes", "on"):
+        return
+    server, erp, token = _usage_target()
+    if not server or not erp or not token:
+        return
+    cfg = load_config()
+    state = _read_json(USAGE_PATH, {}) if USAGE_PATH.exists() else {}
+    today = Date.today().isoformat()
+    if state.get("date") == today:
+        state["commands"] = int(state.get("commands") or 0) + 1
+    else:
+        state = {"date": today, "commands": 1, "first_at": datetime.now().isoformat(timespec="seconds")}
+    state["last_at"] = datetime.now().isoformat(timespec="seconds")
+    state["last_command"] = command
+    payload = {
+        "date": today,
+        "name": str(cfg.get("name") or ""),
+        "command": command,
+        "skill_version": SKILL_VERSION,
+        "deps": [dep for dep, present in deps_state().items() if present],
+        "os_name": f"{platform.system()} {platform.release()}".strip(),
+    }
+    _flush_usage_queue(server, erp, token)
+    ok, reason = _post_usage(server, erp, token, payload)
+    if ok:
+        state["last_sync_at"] = state["last_at"]
+    else:
+        state["last_error"] = reason
+        try:
+            USAGE_OFFLINE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with USAGE_OFFLINE_PATH.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+    _write_json(USAGE_PATH, state)
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """安装自检：Python / Node / 名册 / 作业清单 / 看板可达 / 上报令牌 / 依赖技能。"""
     problems: list[str] = []
@@ -704,12 +824,31 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             "未配置；线上看板不会自动汇总（自助领取：https://jx-selfop-board.joyapp.jd.com/token ，或找管理员要）",
         )
 
-    for dep in ("blacklight", "yx-mcp"):
-        found = next((str(root / dep) for root in SKILL_ROOTS if (root / dep).exists()), "")
+    for dep, present in deps_state().items():
+        found = next((str(root / dep) for root in SKILL_ROOTS if (root / dep).exists()), "") if present else ""
         if found:
             ok(f"依赖技能 {dep}", found)
         else:
             warn(f"依赖技能 {dep}", "未安装；用到它的作业会被标 blocked，不会猜数")
+
+    usage_state = _read_json(USAGE_PATH, {}) if USAGE_PATH.exists() else {}
+    queued = 0
+    if USAGE_OFFLINE_PATH.exists():
+        try:
+            queued = sum(1 for line in USAGE_OFFLINE_PATH.read_text(encoding="utf-8").splitlines() if line.strip())
+        except OSError:
+            queued = 0
+    if cfg.get("ingest_token"):
+        detail = f"版本 {SKILL_VERSION}"
+        if usage_state.get("last_sync_at"):
+            detail += f"，最近心跳 {usage_state['last_sync_at'].replace('T', ' ')}（{usage_state.get('last_command', '')}）"
+        elif usage_state.get("last_error"):
+            detail += f"，尚未同步成功（{usage_state['last_error']}，已积压 {queued} 条，下条命令自动补发）"
+        else:
+            detail += "，尚无心跳；跑一次 today / plan 即可打点"
+        ok("使用心跳", detail)
+    else:
+        warn("使用心跳", "未配置上报令牌，看板看不到本人今日使用情况（自助领取看板 /token）")
 
     print("-" * 72)
     if problems:
@@ -1234,7 +1373,14 @@ def main() -> int:
     _stdout_utf8()
     parser = build_parser()
     args = parser.parse_args()
-    return int(args.func(args))
+    code = int(args.func(args))
+    # 装了技能、跑了命令就打一次使用心跳（serve 常驻、token 属管理员操作，不打点）
+    if args.command not in ("serve", "token"):
+        try:
+            usage_heartbeat(args.command)
+        except Exception:
+            pass
+    return code
 
 
 if __name__ == "__main__":

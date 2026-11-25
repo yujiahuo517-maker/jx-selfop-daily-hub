@@ -167,11 +167,12 @@ node dashboard/export-static.js --out dashboard-demo.html --demo       # 演示�
 | 页面 | `/` 实时矩阵（60 秒刷新）· `/token` 令牌自助领取 · `/full.html` 完整快照 · `/demo.html` 演示快照 |
 | 数据 | 平台共享分库 `jx-selfop-board.db`（2 号底座），重部署不丢 |
 | 上报 | `POST /api/tunnel/report`（每人一个 HMAC 令牌）+ `POST /api/report`（浏览器 SSO 身份） |
+| 使用心跳 | `POST /api/usage`（本人令牌）：装完每条命令自动打点，看板显示「今日已用 / 在用人数」，不计入完成率 |
 | 访问控制 | SSO 守卫（`withGuard`）+ 门户白名单 |
 
 成员改成上报线上（每人一次）。`Token` 首选自助领取：用本人京东身份打开
-**https://jx-selfop-board.joyapp.jd.com/token** ，页面显示本人令牌 + 拼好的安装命令，复制即可
-（只认 SSO 身份，不给别人的令牌；不在名册 403、未登录 401、未配密钥 503）。
+**https://jx-selfop-board.joyapp.jd.com/token** ，页面显示本人令牌 + 整段可复制的安装命令，复制即可
+（只认 SSO 身份，不给别人的令牌；未登录 401、未配密钥 503；不在名册的本人 ERP 领取即**自动入册**）。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <本人令牌>

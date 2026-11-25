@@ -82,7 +82,7 @@
           <button class="btn primary" id="copyToken">复制令牌</button>
         </div>
 
-        <p class="label" style="margin-top:18px">装上技能就跑这一条（PowerShell，已填好你的 ERP 和令牌）</p>
+        <p class="label" style="margin-top:18px">装上技能就跑这一条（PowerShell 整段复制，已填好你的 ERP 和令牌）</p>
         <pre class="cmd" id="cmdText"></pre>
         <div class="token-box" style="margin-top:10px">
           <button class="btn" id="copyCmd">复制安装命令</button>
@@ -92,6 +92,7 @@
         <div class="hint">
           <b>这串令牌等于你的签名。</b>只填在自己电脑的安装命令里：不要发群、不要贴文档、不要提交到代码库。
           <br />令牌值不能自选、也不能手改；换人换 ERP 会自动换一份，用别人的 ERP 领不到、也上报不上去。
+          <br />装好后每次运行技能都会自动打一次<b>使用心跳</b>，看板「今日已用 / 在用人数」据此显示；心跳只表示在用，不算作业完成。
         </div>
       </div>
 
@@ -154,7 +155,9 @@
             document.getElementById('whoName').textContent = r.body.name || r.body.erp;
             document.getElementById('whoErp').textContent = '(' + r.body.erp + ')';
             document.getElementById('tokenText').textContent = r.body.token;
-            cmd = 'powershell -ExecutionPolicy Bypass -File install.ps1 -Erp ' + r.body.erp +
+            cmd = 'git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git ' +
+                  '$env:USERPROFILE\\jx-selfop-daily-hub; cd $env:USERPROFILE\\jx-selfop-daily-hub; ' +
+                  'powershell -ExecutionPolicy Bypass -File install.ps1 -Erp ' + r.body.erp +
                   ' -Name ' + (r.body.name || r.body.erp) + ' -Token ' + r.body.token;
             document.getElementById('cmdText').textContent = cmd;
             footTip.textContent = '令牌只在你的浏览器和看板之间传递，不会写进任何群或文档。';
@@ -166,8 +169,8 @@
             return;
           }
           if (r.status === 403) {
-            showError('你还不在看板名册里。',
-              '把 ERP ' + ((r.body && r.body.erp) || '') + ' 发给管理员登记，加进名册后刷新本页即可领到。');
+            showError('你的 ERP 没能自动入册。',
+              '确认 ERP（' + ((r.body && r.body.erp) || '未取到') + '）是本人账号，刷新本页重试；仍失败把这段提示发给管理员。');
             return;
           }
           if (r.status === 503) {

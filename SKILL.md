@@ -155,18 +155,22 @@ python scripts/jx_task.py serve --port 8080
 
 ## 分发与安装
 
-两种方式二选一：
-
-- 直接给成员 GitHub 地址：`git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git`
-- 或把打包好的 zip 解压，在目录里运行：
+推荐只发 GitHub 地址，成员在自己机器上装，不需要管理员打包、也不需要发别人的令牌：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <管理员给的令牌>
+git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git
+cd jx-selfop-daily-hub
+powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <本人ERP> -Name <本人姓名>
 ```
 
-令牌不用管理员手工发：成员用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token ，
-页面直接给出本人令牌和拼好的安装命令（`/api/token` 只认 SSO 身份：取不到身份给 401、
-不在名册给 403、服务没配密钥给 503，都不会返回别人的令牌）。
+令牌＝本人身份，不能代领、不能共用：成员用本人京东身份打开
+https://jx-selfop-board.joyapp.jd.com/token ，页面直接给出本人 32 位令牌和拼好的安装命令
+（`/api/token` 只认 SSO 身份：取不到身份 401、服务没配密钥 503、永远不返回别人的令牌；
+不在名册的 ERP 会在领取时**自动入册**，管理员不用改名册重部署）。
+
+安装后每次运行 `jx_task.py` 的任意命令都会自动打一次**使用心跳**（`POST /api/usage`），
+看板「今日已用」和「在用人数」据此显示；只表示本人今天在用，**不代表作业完成**。
+心跳失败不影响本地留痕，会积压在 `%USERPROFILE%\.jx-selfop\usage_offline.jsonl`，下条命令自动补发。
 
 `install.ps1` 的动作：检查 Python 版本（3.10+，建议 3.11+）→ 探测 Node（18+，仅本机看板需要）→
 复制到 `%USERPROFILE%\.joycode\skills\jx-selfop-daily-hub` → 初始化本人配置（看板地址默认
@@ -176,21 +180,21 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -
 
 1. 把本人写进 `data/roster.json`（覆盖安装不会丢名册）；
 2. 把负责人专属作业的示例占位 `owners` 改成本人 ERP（否则新成员看不到超补 / 秒杀 / 特价）；
-3. 缺上报令牌时给出提示，本地留痕照常可用。
+3. 缺上报令牌时给出提示（含 `/token` 自助领取地址），本地留痕照常可用。
 
 成员数据在 `%USERPROFILE%\.jx-selfop\`，卸载技能不丢历史。
 
 装完自查：
 
 ```powershell
-python scripts/jx_task.py doctor   # Python / Node / 名册 / 作业清单 / 看板可达 / 令牌 / 依赖技能
+python scripts/jx_task.py doctor   # Python / Node / 名册 / 作业清单 / 看板可达 / 令牌 / 使用心跳 / 依赖技能
 python scripts/jx_task.py plan
 ```
 
 分发前管理员必须确认：
 
 - 通用看板 `https://jx-selfop-board.joyapp.jd.com/` 可打开，成员在门户白名单里。
-- 每人一个上报令牌：成员自助领取（`/token`），管理员 `token --erp <ERP>` 兜底；`INGEST_SECRET` 不外发。
+- 每人一个上报令牌：成员自助领取（`/token`，领取即自动入册），管理员 `token --erp <ERP>` 兜底；`INGEST_SECRET` 不外发。
 - 涉及写平台的 SOP，成员已安装并登录 `blacklight` / OSW 等依赖。
 
 ## 依赖与降级
