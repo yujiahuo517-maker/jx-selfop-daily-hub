@@ -35,7 +35,7 @@ USAGE_PATH = HOME / "usage.json"
 USAGE_OFFLINE_PATH = HOME / "usage_offline.jsonl"
 OVERRIDES_PATH = HOME / "overrides.json"
 
-SKILL_VERSION = "1.4.0"
+SKILL_VERSION = "1.5.0"
 DEFAULT_START_TIME = "09:30"
 
 # 统一的作业完成看板（全员共用，成员装完即指向这里）
@@ -906,7 +906,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def cmd_token(args: argparse.Namespace) -> int:
-    """按 INGEST_SECRET 生成成员上报令牌（线上看板校验用）。"""
+    """老式兜底：按 INGEST_SECRET 算 HMAC 令牌。\n\n    日常不用这个命令——成员自己打开看板 /token 领随机令牌即可；\n    只有看板仍以 INGEST_SECRET 模式部署时才需要用 --secret 核对。\n    """
     secret = args.secret or os.environ.get("JX_INGEST_SECRET", "")
     if not secret:
         raise SystemExit("需要 --secret，或设置环境变量 JX_INGEST_SECRET（与部署时的 INGEST_SECRET 一致）")

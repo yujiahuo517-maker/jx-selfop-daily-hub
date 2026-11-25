@@ -224,7 +224,7 @@ python scripts/jx_task.py plan
 分发前管理员必须确认：
 
 - 通用看板 `https://jx-selfop-board.joyapp.jd.com/` 可打开，成员在门户白名单里。
-- 每人一个上报令牌：成员自助领取（`/token`，领取即自动入册），管理员 `token --erp <ERP>` 兜底；`INGEST_SECRET` 不外发。
+- 每人一条上报令牌：成员自助领取（`/token`，领取即自动入册；重新领取会让旧令牌立刻失效），看板侧不存总密钥。
 - 涉及写平台的 SOP，成员已安装并登录 `blacklight` / OSW 等依赖。
 
 ## 依赖与降级

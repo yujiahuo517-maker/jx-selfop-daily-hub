@@ -64,7 +64,7 @@
   <main>
     <section class="card">
       <h1>一键领取我的令牌</h1>
-      <p class="sub">这串令牌由看板按你的京东登录身份算出，一人一份、换不了也改不了。填进本机安装命令即可，不用等管理员发。</p>
+      <p class="sub">这串令牌是看板单独发给你的一条随机串，一人一条；填进本机安装命令即可，不用等管理员发。重新领取会让旧令牌立刻失效（换电脑、丢了再领）。</p>
 
       <div id="loading" class="loading">正在读取你的身份…</div>
 
@@ -80,6 +80,7 @@
         <div class="token-box">
           <div class="token" id="tokenText"></div>
           <button class="btn primary" id="copyToken">复制令牌</button>
+          <button class="btn hidden" id="rotateBtn">重新领取（旧令牌立即失效）</button>
         </div>
 
         <p class="label" style="margin-top:18px">装上技能就跑这一条（PowerShell 整段复制，已填好你的 ERP 和令牌）</p>
@@ -91,7 +92,8 @@
 
         <div class="hint">
           <b>这串令牌等于你的签名。</b>只填在自己电脑的安装命令里：不要发群、不要贴文档、不要提交到代码库。
-          <br />令牌值不能自选、也不能手改；换人换 ERP 会自动换一份，用别人的 ERP 领不到、也上报不上去。
+          <br />令牌值不能自选、也不能手改；一人一条，用别人的 ERP 领不到、也上报不上去。
+          <br />万一泄露：回到本页点「重新领取」，旧令牌当场失效，再在本机重跑一次安装命令即可。
           <br />装好后每次运行技能都会自动打一次<b>使用心跳</b>，看板「今日已用 / 在用人数」据此显示；心跳只表示在用，不算作业完成。
         </div>
       </div>
@@ -144,45 +146,106 @@
         document.body.removeChild(ta);
       }
 
-      fetch('/api/token', { headers: { 'accept': 'application/json' }, credentials: 'same-origin' })
-        .then(function (res) {
+﻿      function buildCmd(body) {
+        return 'git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git ' +
+               '$env:USERPROFILE\\jx-selfop-daily-hub; cd $env:USERPROFILE\\jx-selfop-daily-hub; ' +
+               'powershell -ExecutionPolicy Bypass -File install.ps1 -Erp ' + body.erp +
+               ' -Name ' + (body.name || body.erp) + ' -Token ' + body.token;
+      }
+
+      function fillWho(body) {
+        document.getElementById('whoName').textContent = body.name || body.erp;
+        document.getElementById('whoErp').textContent = '(' + body.erp + ')';
+      }
+
+      function renderToken(body) {
+        loading.classList.add('hidden');
+        okBox.classList.remove('hidden');
+        fillWho(body);
+        document.getElementById('tokenText').textContent = body.token;
+        document.getElementById('copyToken').classList.remove('hidden');
+        document.getElementById('rotateBtn').classList.toggle('hidden', !body.rotated);
+        cmd = buildCmd(body);
+        document.getElementById('cmdText').textContent = cmd;
+        footTip.textContent = body.rotated
+          ? '已重新领取：旧令牌从现在起失效，本机要重跑一次安装命令。'
+          : '令牌只在你的浏览器和看板之间传递，不会写进任何群或文档。';
+      }
+
+      function renderExisting(body) {
+        loading.classList.add('hidden');
+        okBox.classList.remove('hidden');
+        fillWho(body);
+        document.getElementById('tokenText').textContent = '（你之前已领过，页面不再显示旧令牌）';
+        document.getElementById('copyToken').classList.add('hidden');
+        document.getElementById('rotateBtn').classList.remove('hidden');
+        cmd = '';
+        document.getElementById('cmdText').textContent = '需要安装命令就点上面「重新领取」，会给出新令牌和新命令。';
+        footTip.textContent = '换电脑或令牌丢了，点「重新领取」即可，旧令牌会立刻失效。';
+      }
+
+      function handleError(r) {
+        if (r.status === 401) {
+          showError('没有取到你的京东登录身份。',
+            '请从内部门户 jx-selfop-board.joyapp.jd.com 打开本页，不要直接在外部浏览器输地址。');
+          return;
+        }
+        if (r.status === 403) {
+          showError('你的 ERP 没能自动入册。',
+            '确认 ERP（' + ((r.body && r.body.erp) || '未取到') + '）是本人账号，刷新本页重试；仍失败把这段提示发给管理员。');
+          return;
+        }
+        showError((r.body && r.body.error) || ('领取失败（HTTP ' + r.status + '）'),
+          '把这段提示截图发给管理员排查。');
+      }
+
+      function call(method) {
+        return fetch('/api/token', {
+          method: method,
+          headers: { 'accept': 'application/json' },
+          credentials: 'same-origin',
+        }).then(function (res) {
           return res.json().then(function (body) { return { status: res.status, body: body || {} }; });
-        })
+        });
+      }
+
+      function mint() {
+        return call('POST').then(function (r) {
+          if (r.status === 200 && r.body.ok && r.body.token) {
+            renderToken(r.body);
+            return;
+          }
+          handleError(r);
+        });
+      }
+
+      call('GET')
         .then(function (r) {
-          if (r.status === 200 && r.body.ok) {
-            loading.classList.add('hidden');
-            okBox.classList.remove('hidden');
-            document.getElementById('whoName').textContent = r.body.name || r.body.erp;
-            document.getElementById('whoErp').textContent = '(' + r.body.erp + ')';
-            document.getElementById('tokenText').textContent = r.body.token;
-            cmd = 'git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git ' +
-                  '$env:USERPROFILE\\jx-selfop-daily-hub; cd $env:USERPROFILE\\jx-selfop-daily-hub; ' +
-                  'powershell -ExecutionPolicy Bypass -File install.ps1 -Erp ' + r.body.erp +
-                  ' -Name ' + (r.body.name || r.body.erp) + ' -Token ' + r.body.token;
-            document.getElementById('cmdText').textContent = cmd;
-            footTip.textContent = '令牌只在你的浏览器和看板之间传递，不会写进任何群或文档。';
-            return;
+          if (r.status !== 200 || !r.body.ok) {
+            handleError(r);
+            return null;
           }
-          if (r.status === 401) {
-            showError('没有取到你的京东登录身份。',
-              '请从内部门户 jx-selfop-board.joyapp.jd.com 打开本页，不要直接在外部浏览器输地址。');
-            return;
+          if (r.body.token) {
+            renderToken(r.body);
+            return null;
           }
-          if (r.status === 403) {
-            showError('你的 ERP 没能自动入册。',
-              '确认 ERP（' + ((r.body && r.body.erp) || '未取到') + '）是本人账号，刷新本页重试；仍失败把这段提示发给管理员。');
-            return;
+          if (r.body.hasToken) {
+            renderExisting(r.body);
+            return null;
           }
-          if (r.status === 503) {
-            showError('看板还没配置上报密钥。', '找管理员补上 INGEST_SECRET 后再来领。');
-            return;
-          }
-          showError((r.body && r.body.error) || ('领取失败（HTTP ' + r.status + '）'),
-            '把这段提示截图发给管理员排查。');
+          loading.textContent = '正在为你生成令牌…';
+          return mint();
         })
         .catch(function (e) {
           showError('请求看板失败。', String(e && e.message ? e.message : e));
         });
+
+      document.getElementById('rotateBtn').addEventListener('click', function () {
+        if (!confirm('重新领取会让旧令牌立刻失效，本机需要重跑一次安装命令。继续？')) return;
+        mint().catch(function (e) {
+          showError('请求看板失败。', String(e && e.message ? e.message : e));
+        });
+      });
 
       document.getElementById('copyToken').addEventListener('click', function () {
         copy(document.getElementById('tokenText').textContent, 'copiedTip');

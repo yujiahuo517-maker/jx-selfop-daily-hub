@@ -157,6 +157,22 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(left, right);
 }
 
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+// 令牌校验：先比对库里存的 sha256（每人一条随机令牌，可单独作废）；
+// 老部署若仍配了 INGEST_SECRET，继续兼容按 HMAC 算出来的老令牌。
+async function verifyIngest(erp, token) {
+  const key = String(erp || '').toLowerCase();
+  const raw = String(token || '').trim();
+  if (!key || !raw) return false;
+  const stored = await store.tokenHashOf(key);
+  if (stored && safeEqual(stored, hashToken(raw))) return true;
+  if (SECRET && safeEqual(tokenFor(key), raw)) return true;
+  return false;
+}
+
 function identityOf(req) {
   const raw = String(req.headers['x-user-erp'] || '').trim().toLowerCase();
   return /^[a-z0-9._-]{2,40}$/.test(raw) ? raw : '';
@@ -186,10 +202,15 @@ async function acceptReport(req, via) {
   } else {
     identity = String(req.headers['x-ingest-erp'] || '').trim().toLowerCase();
     if (!identity) return { status: 401, body: { ok: false, error: '缺少 X-Ingest-Erp' } };
-    if (!SECRET) return { status: 503, body: { ok: false, error: '服务未配置上报密钥' } };
     const token = String(req.headers['x-ingest-token'] || '').trim();
-    if (!safeEqual(tokenFor(identity), token)) {
-      return { status: 401, body: { ok: false, error: '上报令牌无效' } };
+    if (!(await verifyIngest(identity, token))) {
+      return {
+        status: 401,
+        body: {
+          ok: false,
+          error: '上报令牌无效或已被重置：打开 /token 重新领取，再在本机跑 install.ps1 -Token <新令牌>',
+        },
+      };
     }
   }
 
@@ -298,12 +319,17 @@ async function handle(req, res) {
   }
 
   if (pathname === '/health' || pathname === '/healthz' || pathname === '/api/health') {
-    return sendJson(res, 200, { ok: true, dataLayer: store.usingDataLayer, ingest: Boolean(SECRET) });
+    return sendJson(res, 200, {
+      ok: true,
+      dataLayer: store.usingDataLayer,
+      ingest: true,
+      tokenMode: SECRET ? 'per-person+legacy' : 'per-person',
+    });
   }
 
-  // 自助领取上报令牌：只返回「当前 SSO 身份本人」的那一个，不支持指定他人
+  // 自助领取上报令牌：只发「当前 SSO 身份本人」那一条，不支持指定他人
+  // GET 只回报状态；要拿令牌必须 POST（重新领取会让旧令牌立刻失效）
   if (pathname === '/api/token' && req.method === 'GET') {
-    if (!SECRET) return sendJson(res, 503, { ok: false, error: '服务未配置上报密钥，请联系管理员' });
     const identity = identityOf(req);
     if (!identity) {
       return sendJson(res, 401, {
@@ -315,13 +341,47 @@ async function handle(req, res) {
     const person = rosterMap().get(identity);
     const enrolled = person ? false : await enroll(identity, headerName(req), 'token');
     const name = person ? person.name : headerName(req) || identity;
+    const list = await store.members();
+    const mine = list.find((item) => item.erp === identity);
+    const hasToken = Boolean(mine && mine.hasToken);
     return sendJson(res, 200, {
       ok: true,
       erp: identity,
       name,
-      token: tokenFor(identity),
+      hasToken,
+      // 老部署带 INGEST_SECRET、且本人还没领随机令牌时，仍给兼容令牌，已装好的机器不断
+      token: hasToken ? '' : tokenFor(identity),
+      mode: SECRET ? 'per-person+legacy' : 'per-person',
       board: '/',
       enrolled,
+    });
+  }
+
+  // 领取 / 重新领取：随机 32 位，一人一条；覆盖即作废该人旧令牌，可单独吊销
+  if (pathname === '/api/token' && req.method === 'POST') {
+    const identity = identityOf(req);
+    if (!identity) {
+      return sendJson(res, 401, {
+        ok: false,
+        error: '未取到登录身份：请从内部门户打开本页，不要直接从外部浏览器访问',
+      });
+    }
+    const person = rosterMap().get(identity);
+    const enrolled = person ? false : await enroll(identity, headerName(req), 'token');
+    const name = person ? person.name : headerName(req) || identity;
+    const list = await store.members();
+    const mine = list.find((item) => item.erp === identity);
+    const rotated = Boolean(mine && mine.hasToken);
+    const token = crypto.randomBytes(16).toString('hex');
+    await store.saveTokenHash(identity, hashToken(token));
+    return sendJson(res, 200, {
+      ok: true,
+      erp: identity,
+      name,
+      token,
+      rotated,
+      enrolled,
+      mode: 'per-person',
     });
   }
 
@@ -330,9 +390,11 @@ async function handle(req, res) {
   if ((pathname === '/api/usage' || pathname === '/api/tunnel/usage') && req.method === 'POST') {
     const erp = String(req.headers['x-ingest-erp'] || '').trim().toLowerCase();
     if (!erp) return sendJson(res, 401, { ok: false, error: '缺少 X-Ingest-Erp' });
-    if (!SECRET) return sendJson(res, 503, { ok: false, error: '服务未配置上报密钥' });
-    if (!safeEqual(tokenFor(erp), String(req.headers['x-ingest-token'] || '').trim())) {
-      return sendJson(res, 401, { ok: false, error: '上报令牌无效' });
+    if (!(await verifyIngest(erp, req.headers['x-ingest-token']))) {
+      return sendJson(res, 401, {
+        ok: false,
+        error: '上报令牌无效或已被重置：打开 /token 重新领取（旧令牌会失效）',
+      });
     }
     let payload;
     try {
@@ -383,7 +445,7 @@ async function handle(req, res) {
   if (pathname === '/api/admin/delete' && req.method === 'POST') {
     const identity = identityOf(req);
     const tokenErp = String(req.headers['x-ingest-erp'] || '').trim().toLowerCase();
-    const tokenOk = SECRET && safeEqual(tokenFor(tokenErp), String(req.headers['x-ingest-token'] || '').trim());
+    const tokenOk = tokenErp ? await verifyIngest(tokenErp, req.headers['x-ingest-token']) : false;
     const actor = identity || (tokenOk ? tokenErp : '');
     if (!actor || !ADMIN_ERPS.includes(actor)) {
       return sendJson(res, 403, { ok: false, error: '仅管理员可操作' });

@@ -101,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1 `
 > 不需要你手改名册，也不会把别人写进你的机器。
 
 > 走线上看板时把 `-Server` 换成管理员给的地址，并加 `-Token <本人令牌>`。
-> 令牌一人一个，按 ERP 生成，不能自选也不能手改，用别人的 ERP 领不到也上报不上去。
+ > 令牌一人一条随机串，不能自选也不能手改，用别人的 ERP 领不到也上报不上去。
 > **自助领取**：用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token ，
 > 页面直接给出你的 32 位令牌和**整段可复制**的安装命令（`git clone` → `cd` → `install.ps1`），
 > 不用等管理员发；不在名册会当场自动入册。
@@ -438,19 +438,17 @@ python scripts/jx_task.py plan
 规矩：写平台前一定先给确认清单，你点头才提交；提交成功即算完成，回读结果建议一并记录。
 ```
 
-令牌首选让同事自己领（一人一个、按 ERP 生成、离职自动失效）：
+令牌让同事自己领（一人一条随机令牌、库内存哈希、可单独作废）：
 
 https://jx-selfop-board.joyapp.jd.com/token
 
 用他本人的京东身份打开，页面会显示姓名、ERP、32 位令牌和拼好的安装命令，复制粘贴即可；
 不在名册的本人 ERP 会在领取时自动入册；没登录会看到「请从内部门户打开」。
 
-管理员兜底（离线发放 / 核对名单）：
+令牌丢了 / 换电脑：回 `/token` 点「重新领取」，旧令牌当场失效，本机重跑一次安装命令即可。
 
-```powershell
-$env:JX_INGEST_SECRET = "<secret>"
-python scripts/jx_task.py token --erp <同事ERP>
-```
+看板侧**不再需要 `INGEST_SECRET`**，部署参数里只有 `ADMIN_ERPS`，日志里不存在可复制的密钥。
+（老部署若仍配着 `INGEST_SECRET`，服务端继续兼容按 HMAC 算出的老令牌，不会打断已装好的机器。）
 
 ### 打包成 zip 分发
 

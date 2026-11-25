@@ -59,6 +59,13 @@ const CREATE_USAGE_SQL = [
 const MEMBERS_FALLBACK = path.join(__dirname, 'data', 'members.local.json');
 const USAGE_FALLBACK = path.join(__dirname, 'data', 'usage.local.json');
 
+// 每人随机令牌：库里只存 sha256(令牌)，明文只在领取那一刻返回一次。
+// 这样看板不再需要全局 INGEST_SECRET，谁的令牌泄露只作废谁那一条。
+const ALTER_MEMBERS_SQL = [
+  'ALTER TABLE members ADD COLUMN token_hash TEXT',
+  'ALTER TABLE members ADD COLUMN token_issued_at TEXT',
+];
+
 let schemaReady = false;
 
 function rowsOf(result) {
@@ -93,6 +100,14 @@ async function ensureSchema() {
   await client.call('POST', '/exec', { sql: INDEX_SQL });
   await client.call('POST', '/exec', { sql: CREATE_MEMBERS_SQL });
   await client.call('POST', '/exec', { sql: CREATE_USAGE_SQL });
+  // 老库没有 token_hash/token_issued_at，逐条 ALTER，已存在就跳过
+  for (const sql of ALTER_MEMBERS_SQL) {
+    try {
+      await client.call('POST', '/exec', { sql });
+    } catch (error) {
+      /* 列已存在则忽略 */
+    }
+  }
   schemaReady = true;
 }
 
@@ -191,12 +206,21 @@ function writeJsonFile(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
 
-/* 成员：erp / name / first_seen / last_seen / source */
+/* 成员：erp / name / first_seen / last_seen / source / hasToken */
 async function members() {
-  if (!client) return readJsonFile(MEMBERS_FALLBACK, []);
+  if (!client) {
+    return readJsonFile(MEMBERS_FALLBACK, []).map((item) => ({
+      erp: String(item.erp || '').toLowerCase(),
+      name: String(item.name || ''),
+      first_seen: String(item.first_seen || ''),
+      last_seen: String(item.last_seen || ''),
+      source: String(item.source || ''),
+      hasToken: Boolean(item.token_hash),
+    }));
+  }
   await ensureSchema();
   const result = await client.call('POST', '/query', {
-    sql: 'SELECT erp, name, first_seen, last_seen, source FROM members ORDER BY first_seen ASC',
+    sql: 'SELECT erp, name, first_seen, last_seen, source, token_hash FROM members ORDER BY first_seen ASC',
   });
   return rowsOf(result).map((row) => ({
     erp: String(row.erp || '').toLowerCase(),
@@ -204,6 +228,7 @@ async function members() {
     first_seen: String(row.first_seen || ''),
     last_seen: String(row.last_seen || ''),
     source: String(row.source || ''),
+    hasToken: Boolean(row.token_hash),
   }));
 }
 
@@ -230,6 +255,58 @@ async function upsertMember(person) {
     hit.last_seen = now;
   } else {
     list.push({ erp, name, first_seen: now, last_seen: now, source });
+  }
+  writeJsonFile(MEMBERS_FALLBACK, list);
+}
+
+/* 读取某人的令牌哈希（没领过返回空串） */
+async function tokenHashOf(erp) {
+  const key = String(erp || '').toLowerCase();
+  if (!key) return '';
+  if (!client) {
+    const hit = readJsonFile(MEMBERS_FALLBACK, []).find(
+      (item) => String(item.erp || '').toLowerCase() === key,
+    );
+    return hit && hit.token_hash ? String(hit.token_hash) : '';
+  }
+  await ensureSchema();
+  const result = await client.call('POST', '/query', {
+    sql: 'SELECT token_hash FROM members WHERE erp = ?',
+    args: [key],
+  });
+  const row = rowsOf(result)[0];
+  if (!row) return '';
+  const raw = typeof row === 'object' && row !== null ? row.token_hash : row;
+  return raw ? String(raw) : '';
+}
+
+/* 写入/覆盖令牌哈希：覆盖即让该人旧令牌立即失效 */
+async function saveTokenHash(erp, hash, issuedAt) {
+  const key = String(erp || '').toLowerCase();
+  if (!key) return;
+  const now = issuedAt || new Date().toISOString();
+  const value = String(hash || '');
+  if (client) {
+    await ensureSchema();
+    // 名册里已有的人（静态 roster）原本没有 members 行，这里顺手建出来，
+    // 否则 UPDATE 会影响 0 行、令牌白领一次。
+    await client.call('POST', '/exec', {
+      sql:
+        'INSERT INTO members(erp,name,first_seen,last_seen,source,token_hash,token_issued_at) ' +
+        'VALUES (?,?,?,?,?,?,?) ' +
+        'ON CONFLICT(erp) DO UPDATE SET token_hash=excluded.token_hash, ' +
+        'token_issued_at=excluded.token_issued_at, last_seen=excluded.last_seen',
+      args: [key, key, now, now, 'token', value, now],
+    });
+    return;
+  }
+  const list = readJsonFile(MEMBERS_FALLBACK, []);
+  const hit = list.find((item) => String(item.erp || '').toLowerCase() === key);
+  if (hit) {
+    hit.token_hash = value;
+    hit.token_issued_at = now;
+  } else {
+    list.push({ erp: key, name: key, first_seen: now, last_seen: now, source: 'token', token_hash: value, token_issued_at: now });
   }
   writeJsonFile(MEMBERS_FALLBACK, list);
 }
@@ -301,6 +378,8 @@ module.exports = {
   count,
   members,
   upsertMember,
+  tokenHashOf,
+  saveTokenHash,
   bumpUsage,
   usageSince,
 };

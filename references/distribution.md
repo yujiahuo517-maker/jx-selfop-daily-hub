@@ -156,22 +156,28 @@ node dashboard/export-static.js --out dashboard-demo.html --demo       # 演示�
 2. `imagination_list_apps` 确认已有 `appCode=jx-selfop-board`（projectId 91458）。
 3. `imagination_provision_data_layer({shared:true, appCode:"jx-selfop-board"})` 取 `dataLayerUrl`
    （当前 `https://data-layer.joyapp.jd.com`、2 号共享底座、库 `jx-selfop-board.db`；重部署不丢数据）。
-4. 部署（迭代部署**不要**传 `domainPrefix` / `portalName` / `portalIcon` / `portalDesc`）；
-   `deployEnv` 至少带三个变量（换行分隔的 `KEY=VALUE`）：
+﻿4. 部署（迭代部署**不要**传 `domainPrefix` / `portalName` / `portalIcon` / `portalDesc`）；
+   `deployEnv` 现在只需要管理员名单，**不再需要全局密钥**：
 
    | 变量 | 作用 | 说明 |
    |---|---|---|
-   | `INGEST_SECRET` | 令牌 HMAC 密钥 | **必须与上一次部署一致**，换了所有人令牌失效；只存平台 deployEnv 与本机 `publish/ingest-secret.txt`（gitignore） |
-   | `ADMIN_ERPS` | 管理员 ERP（可纠错） | 当前 `huoyujia6` |
+   | `ADMIN_ERPS` | 管理员 ERP（可纠错 / 可看全量） | 当前 `huoyujia6` |
    | `PORT` | 监听端口 | 平台注入；代码读 `process.env.PORT`，启用守卫时是 3001 |
 
-5. `imagination_deploy({appCode:"jx-selfop-board", projectDir:"<repo>/cloud-app", mode:"local", deployEnv:"..."})`
+   > **令牌模型（v1.5 起）**：每人一条随机令牌，`members.token_hash` 只存 sha256；
+   > `/token` 页（本人 SSO）点一次发一条，重新领取会让该人旧令牌**立刻失效**；
+   > 没有「总钥匙」，部署参数和日志里都不存在可复制的密钥。
+   > 老部署若仍配着 `INGEST_SECRET`，服务端继续兼容 HMAC 老令牌，已装好的机器不会被打断。
+
+5. `imagination_deploy({appCode:"jx-selfop-board", projectDir:"<repo>/cloud-app", mode:"local",
+   deployEnv:"ADMIN_ERPS=huoyujia6", dataLayerUrl:"https://data-layer.joyapp.jd.com"})`
    → 返回 `taskId`（local 异步构建，2-5 分钟）→ 轮询 `imagination_deploy_status({appCode})` 到成功。
 6. 回读验证：打开 `https://jx-selfop-board.joyapp.jd.com/` 看矩阵是否 5 列；
-   本机跑任意 `jx_task.py` 命令后用 `doctor` 看「使用心跳」是否同步成功（验证 `INGEST_SECRET` 没换）。
+   到 `/token` 领本人令牌 → 本机 `install.ps1 ... -Token <令牌>` → 跑任意 `jx_task.py` 命令，
+   用 `doctor` 看「使用心跳」是否同步成功。
 
-> 部署后如果心跳/上报变成 401「令牌无效」，说明 `INGEST_SECRET` 与旧值不一致：
-> 要么用旧 secret 原地重部署（令牌不变），要么接受轮换并让全员到 `/token` 重新领一次。
+> 部署后如果心跳/上报变成 401：令牌不匹配。到 `/token` 重新领取（旧令牌自动失效），
+> 本机重跑一次安装命令即可，**不用动平台环境变量**。
 
 ### 4. 已发布实例（实时版）与成员上报
 
@@ -182,24 +188,21 @@ node dashboard/export-static.js --out dashboard-demo.html --demo       # 演示�
 | 门户 | https://<你的门户域名>/app/<你的应用码>/ |
 | 页面 | `/` 实时矩阵（60 秒刷新）· `/token` 令牌自助领取 · `/full.html` 完整快照 · `/demo.html` 演示快照 |
 | 数据 | 平台共享分库 `jx-selfop-board.db`（2 号底座），重部署不丢 |
-| 上报 | `POST /api/tunnel/report`（每人一个 HMAC 令牌）+ `POST /api/report`（浏览器 SSO 身份） |
+| 上报 | `POST /api/tunnel/report`（每人一条随机令牌，库内存哈希）+ `POST /api/report`（浏览器 SSO 身份） |
 | 使用心跳 | `POST /api/tunnel/usage`（本人令牌，兼容旧 `/api/usage`）：装完每条命令自动打点，看板显示「今日已用 / 在用人数」，不计入完成率 |
 | 访问控制 | SSO 守卫（`withGuard`）+ 门户白名单 |
 
 成员改成上报线上（每人一次）。`Token` 首选自助领取：用本人京东身份打开
 **https://jx-selfop-board.joyapp.jd.com/token** ，页面显示本人令牌 + 整段可复制的安装命令，复制即可
-（只认 SSO 身份，不给别人的令牌；未登录 401、未配密钥 503；不在名册的本人 ERP 领取即**自动入册**）。
+（只认 SSO 身份，不给别人的令牌；未登录 401；不在名册的本人 ERP 领取即**自动入册**）。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <本人令牌>
 ```
 
-管理员兜底生成令牌（离线发放 / 核对；`INGEST_SECRET` 只在本机 `publish/ingest-secret.txt` 与平台 `deployEnv`，不要外发）：
+令牌丢了 / 换电脑：回 `/token` 点「重新领取」，拿到新令牌后重跑上面的命令；旧令牌当场失效。
+要作废某个人，也是让他自己重新领取一次——不需要管理员发密钥、不需要重部署。
 
-```powershell
-$env:JX_INGEST_SECRET = "<secret>"
-python scripts/jx_task.py token --all   # ERP / 姓名 / 令牌
-```
 
 上报口径：
 
