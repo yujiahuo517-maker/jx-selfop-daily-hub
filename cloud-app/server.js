@@ -19,7 +19,7 @@ const PORT = Number(process.env.PORT || 3001);
 const HOST = '0.0.0.0';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const SECRET = String(process.env.INGEST_SECRET || '');
-const ADMIN_ERPS = String(process.env.ADMIN_ERPS || 'zhangsan1')
+const ADMIN_ERPS = String(process.env.ADMIN_ERPS || 'huoyujia6')
   .split(',')
   .map((item) => item.trim().toLowerCase())
   .filter(Boolean);

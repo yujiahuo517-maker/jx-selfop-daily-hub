@@ -35,7 +35,7 @@ USAGE_PATH = HOME / "usage.json"
 USAGE_OFFLINE_PATH = HOME / "usage_offline.jsonl"
 OVERRIDES_PATH = HOME / "overrides.json"
 
-SKILL_VERSION = "1.3.0"
+SKILL_VERSION = "1.4.0"
 DEFAULT_START_TIME = "09:30"
 
 # 统一的作业完成看板（全员共用，成员装完即指向这里）
