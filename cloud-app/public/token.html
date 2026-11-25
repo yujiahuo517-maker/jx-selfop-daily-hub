@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>领取我的上报令牌 · 自营作业看板</title>
+  <style>
+    :root { --ink:#101828; --sub:#667085; --line:#eaecf0; --bg:#f7f8fa;
+      --done:#067647; --done-bg:#ecfdf3; --bad:#b42318; --bad-bg:#fef3f2; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink);
+      font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+    header { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+      justify-content:space-between; padding:14px 20px; background:#fff;
+      border-bottom:1px solid var(--line); }
+    .brand { font-size:16px; font-weight:700; }
+    .meta { display:flex; gap:12px; align-items:center; color:var(--sub); font-size:13px; }
+    .meta a { color:#175cd3; text-decoration:none; }
+    .meta a:hover { text-decoration:underline; }
+    main { max-width:760px; margin:0 auto; padding:22px 20px 48px; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px;
+      padding:20px 22px; }
+    h1 { margin:0 0 6px; font-size:19px; }
+    p.sub { margin:0 0 18px; color:var(--sub); font-size:13px; }
+    .who { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
+      padding:12px 14px; background:#fcfcfd; border:1px solid var(--line);
+      border-radius:11px; margin-bottom:18px; font-size:13.5px; }
+    .who b { font-size:15px; }
+    .who code { color:var(--sub); font-family:ui-monospace,Menlo,Consolas,monospace; }
+    .label { color:var(--sub); font-size:12.5px; margin:0 0 6px; }
+    .token-box { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .token { flex:1 1 320px; padding:12px 14px; border:1px dashed #b2ddff;
+      background:#eff8ff; border-radius:11px; word-break:break-all;
+      font-family:ui-monospace,Menlo,Consolas,monospace; font-size:15px;
+      letter-spacing:.03em; }
+    .btn { border:1px solid var(--line); background:#fff; color:var(--ink);
+      border-radius:9px; padding:8px 14px; font-size:13px; cursor:pointer; }
+    .btn:hover { background:#f9fafb; }
+    .btn.primary { background:#175cd3; border-color:#175cd3; color:#fff; }
+    .btn.primary:hover { background:#1249a8; }
+    pre.cmd { margin:10px 0 0; padding:12px 14px; background:#0f172a; color:#e2e8f0;
+      border-radius:11px; overflow-x:auto; font-size:12.5px; line-height:1.7;
+      font-family:ui-monospace,Menlo,Consolas,monospace; }
+    .hint { margin:16px 0 0; padding:12px 14px; background:#fffaeb; border:1px solid #fedf89;
+      border-radius:11px; color:#93370d; font-size:12.5px; }
+    .hint b { color:#7a2e0e; }
+    .err { padding:14px 16px; border-radius:11px; background:var(--bad-bg);
+      border:1px solid #fecdca; color:var(--bad); font-size:13.5px; }
+    .err small { display:block; margin-top:6px; color:#912018; font-size:12.5px; }
+    .loading { color:var(--sub); font-size:13px; }
+    ol { margin:8px 0 0; padding-left:20px; color:var(--ink); font-size:13px; }
+    ol li { margin:4px 0; }
+    .muted { color:var(--sub); font-size:12.5px; margin:14px 0 0; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">自营作业 · 领取我的上报令牌</div>
+    <div class="meta">
+      <a href="/">← 返回今日矩阵</a>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h1>一键领取我的令牌</h1>
+      <p class="sub">这串令牌由看板按你的京东登录身份算出，一人一份、换不了也改不了。填进本机安装命令即可，不用等管理员发。</p>
+
+      <div id="loading" class="loading">正在读取你的身份…</div>
+
+      <div id="errBox" class="err hidden"></div>
+
+      <div id="okBox" class="hidden">
+        <div class="who">
+          <span>当前身份：</span><b id="whoName"></b>
+          <code id="whoErp"></code>
+        </div>
+
+        <p class="label">你的上报令牌（32 位）</p>
+        <div class="token-box">
+          <div class="token" id="tokenText"></div>
+          <button class="btn primary" id="copyToken">复制令牌</button>
+        </div>
+
+        <p class="label" style="margin-top:18px">装上技能就跑这一条（PowerShell，已填好你的 ERP 和令牌）</p>
+        <pre class="cmd" id="cmdText"></pre>
+        <div class="token-box" style="margin-top:10px">
+          <button class="btn" id="copyCmd">复制安装命令</button>
+          <span class="loading hidden" id="copiedTip" style="color:var(--done)">已复制</span>
+        </div>
+
+        <div class="hint">
+          <b>这串令牌等于你的签名。</b>只填在自己电脑的安装命令里：不要发群、不要贴文档、不要提交到代码库。
+          <br />令牌值不能自选、也不能手改；换人换 ERP 会自动换一份，用别人的 ERP 领不到、也上报不上去。
+        </div>
+      </div>
+
+      <p class="muted" id="footTip">领取不到？按提示处理后刷新本页即可。</p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var loading = document.getElementById('loading');
+      var errBox = document.getElementById('errBox');
+      var okBox = document.getElementById('okBox');
+      var footTip = document.getElementById('footTip');
+      var cmd = '';
+
+      function showError(msg, extra) {
+        loading.classList.add('hidden');
+        okBox.classList.add('hidden');
+        errBox.classList.remove('hidden');
+        errBox.innerHTML = '';
+        var main = document.createElement('div');
+        main.textContent = msg || '领取失败';
+        errBox.appendChild(main);
+        if (extra) {
+          var s = document.createElement('small');
+          s.textContent = extra;
+          errBox.appendChild(s);
+        }
+      }
+
+      function flash(id) {
+        var tip = document.getElementById(id);
+        tip.classList.remove('hidden');
+        setTimeout(function () { tip.classList.add('hidden'); }, 1600);
+      }
+
+      function copy(text, tipId) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { flash(tipId); });
+          return;
+        }
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); flash(tipId); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+
+      fetch('/api/token', { headers: { 'accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function (res) {
+          return res.json().then(function (body) { return { status: res.status, body: body || {} }; });
+        })
+        .then(function (r) {
+          if (r.status === 200 && r.body.ok) {
+            loading.classList.add('hidden');
+            okBox.classList.remove('hidden');
+            document.getElementById('whoName').textContent = r.body.name || r.body.erp;
+            document.getElementById('whoErp').textContent = '(' + r.body.erp + ')';
+            document.getElementById('tokenText').textContent = r.body.token;
+            cmd = 'powershell -ExecutionPolicy Bypass -File install.ps1 -Erp ' + r.body.erp +
+                  ' -Name ' + (r.body.name || r.body.erp) + ' -Token ' + r.body.token;
+            document.getElementById('cmdText').textContent = cmd;
+            footTip.textContent = '令牌只在你的浏览器和看板之间传递，不会写进任何群或文档。';
+            return;
+          }
+          if (r.status === 401) {
+            showError('没有取到你的京东登录身份。',
+              '请从内部门户 jx-selfop-board.joyapp.jd.com 打开本页，不要直接在外部浏览器输地址。');
+            return;
+          }
+          if (r.status === 403) {
+            showError('你还不在看板名册里。',
+              '把 ERP ' + ((r.body && r.body.erp) || '') + ' 发给管理员登记，加进名册后刷新本页即可领到。');
+            return;
+          }
+          if (r.status === 503) {
+            showError('看板还没配置上报密钥。', '找管理员补上 INGEST_SECRET 后再来领。');
+            return;
+          }
+          showError((r.body && r.body.error) || ('领取失败（HTTP ' + r.status + '）'),
+            '把这段提示截图发给管理员排查。');
+        })
+        .catch(function (e) {
+          showError('请求看板失败。', String(e && e.message ? e.message : e));
+        });
+
+      document.getElementById('copyToken').addEventListener('click', function () {
+        copy(document.getElementById('tokenText').textContent, 'copiedTip');
+      });
+      document.getElementById('copyCmd').addEventListener('click', function () {
+        if (cmd) copy(cmd, 'copiedTip');
+      });
+    })();
+  </script>
+</body>
+</html>

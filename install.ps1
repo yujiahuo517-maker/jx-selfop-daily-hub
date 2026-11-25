@@ -102,7 +102,8 @@ if (-not $NoInit) {
     if (-not $hasToken) {
       Write-Host ""
       Write-Host "提示：还没配置上报令牌，线上看板不会自动汇总你的记录。" -ForegroundColor Yellow
-      Write-Host ('      向管理员要本 ERP 的令牌，再跑一次：install.ps1 -Erp ' + $Erp + ' -Name ' + $Name + ' -Token <令牌>')
+      Write-Host '      用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token 自助领取（页面会给令牌和整条命令）。'
+      Write-Host ('      也可以找管理员要，领到后重跑：install.ps1 -Erp ' + $Erp + ' -Name ' + $Name + ' -Token <令牌>')
     }
   }
 }

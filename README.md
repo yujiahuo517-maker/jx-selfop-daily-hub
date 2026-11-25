@@ -99,7 +99,9 @@ powershell -ExecutionPolicy Bypass -File install.ps1 `
 > 也不需要你改成他们——管理员分发前会把名册换成真实团队。
 
 > 走线上看板时把 `-Server` 换成管理员给的地址，并加 `-Token <本人令牌>`。
-> 令牌由管理员按 ERP 生成，一人一个，不要互相借用。
+> 令牌一人一个，按 ERP 生成，不能自选也不能手改，用别人的 ERP 领不到也上报不上去。
+> **自助领取**：用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token ，
+> 页面直接给出你的 32 位令牌和拼好的整条安装命令，复制即可，不用等管理员发。
 
 ### 3. 看今天有哪些作业
 
@@ -407,7 +409,14 @@ python scripts/jx_task.py plan
 规矩：写平台前一定先给确认清单，你点头才提交；没有平台回读的，不算完成。
 ```
 
-令牌找管理员要（一人一个、按 ERP 生成、离职作废）。管理员本机执行：
+令牌首选让同事自己领（一人一个、按 ERP 生成、离职自动失效）：
+
+https://jx-selfop-board.joyapp.jd.com/token
+
+用他本人的京东身份打开，页面会显示姓名、ERP、32 位令牌和拼好的安装命令，复制粘贴即可；
+不在名册的人会看到「把 ERP 发给管理员登记」，没登录会看到「请从内部门户打开」。
+
+管理员兜底（离线发放 / 核对名单）：
 
 ```powershell
 $env:JX_INGEST_SECRET = "<secret>"

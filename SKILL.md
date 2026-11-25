@@ -164,6 +164,10 @@ python scripts/jx_task.py serve --port 8080
 powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <管理员给的令牌>
 ```
 
+令牌不用管理员手工发：成员用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token ，
+页面直接给出本人令牌和拼好的安装命令（`/api/token` 只认 SSO 身份：取不到身份给 401、
+不在名册给 403、服务没配密钥给 503，都不会返回别人的令牌）。
+
 `install.ps1` 的动作：检查 Python 版本（3.10+，建议 3.11+）→ 探测 Node（18+，仅本机看板需要）→
 复制到 `%USERPROFILE%\.joycode\skills\jx-selfop-daily-hub` → 初始化本人配置（看板地址默认
 `https://jx-selfop-board.joyapp.jd.com`）→ 自动跑一次 `doctor` 自检。
@@ -186,7 +190,7 @@ python scripts/jx_task.py plan
 分发前管理员必须确认：
 
 - 通用看板 `https://jx-selfop-board.joyapp.jd.com/` 可打开，成员在门户白名单里。
-- 每人一个上报令牌（`token --erp <ERP>` 生成，`INGEST_SECRET` 不外发）。
+- 每人一个上报令牌：成员自助领取（`/token`），管理员 `token --erp <ERP>` 兜底；`INGEST_SECRET` 不外发。
 - 涉及写平台的 SOP，成员已安装并登录 `blacklight` / OSW 等依赖。
 
 ## 依赖与降级

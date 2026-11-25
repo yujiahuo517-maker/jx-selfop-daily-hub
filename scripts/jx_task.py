@@ -309,7 +309,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     if cfg.get("ingest_token"):
         print("已配置上报令牌：done/fail 会自动汇总到线上看板")
     else:
-        print("未配置上报令牌：本地留痕照常，线上看板不会汇总；向管理员要本 ERP 的令牌后重跑 init --token <令牌>")
+        print("未配置上报令牌：本地留痕照常，线上看板不会汇总；")
+        print("  自助领取：用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token ，复制令牌后重跑 init --token <令牌>")
+        print("  也可以找管理员要本 ERP 的令牌。")
     return 0
 
 
@@ -697,7 +699,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if cfg.get("ingest_token"):
         ok("上报令牌", "已配置")
     else:
-        warn("上报令牌", "未配置；线上看板不会自动汇总（向管理员要本 ERP 的令牌）")
+        warn(
+            "上报令牌",
+            "未配置；线上看板不会自动汇总（自助领取：https://jx-selfop-board.joyapp.jd.com/token ，或找管理员要）",
+        )
 
     for dep in ("blacklight", "yx-mcp"):
         found = next((str(root / dep) for root in SKILL_ROOTS if (root / dep).exists()), "")

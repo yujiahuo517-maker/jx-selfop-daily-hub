@@ -1,5 +1,15 @@
 # 变更记录
 
+## 2026-11-25 · v1.2 令牌自助领取
+
+- 新增 `GET /api/token` + 页面 `/token`：同事用本人京东身份打开
+  https://jx-selfop-board.joyapp.jd.com/token 就能领到自己的上报令牌（含姓名、ERP 和拼好的安装命令），
+  不用管理员手工发。
+- 只返回「当前 SSO 身份本人」的那一个令牌，不支持指定他人：未登录 401、不在名册 403、未配密钥 503。
+- 令牌算法不变（HMAC-SHA256(secret, ERP) 前 32 位），与 `python scripts/jx_task.py token --erp` 逐字节一致；
+  `INGEST_SECRET` 仍只存在于平台 `deployEnv`，页面只回令牌、不回密钥。
+- 管理员 `token --erp` / `token --all` 保留为离线兜底。
+
 ## 2026-11-24 · v1.1 可分发版
 
 **作业清单**

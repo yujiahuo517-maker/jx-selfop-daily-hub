@@ -164,18 +164,20 @@ node dashboard/export-static.js --out dashboard-demo.html --demo       # 演示�
 | appCode / projectId | `<你的应用码>` / `<你的项目 ID>` |
 | 地址 | **https://jx-selfop-board.joyapp.jd.com**（全员共用，已内置为安装默认值） |
 | 门户 | https://<你的门户域名>/app/<你的应用码>/ |
-| 页面 | `/` 实时矩阵（60 秒刷新）· `/full.html` 完整快照 · `/demo.html` 演示快照 |
+| 页面 | `/` 实时矩阵（60 秒刷新）· `/token` 令牌自助领取 · `/full.html` 完整快照 · `/demo.html` 演示快照 |
 | 数据 | 平台共享分库 `jx-selfop-board.db`（2 号底座），重部署不丢 |
 | 上报 | `POST /api/tunnel/report`（每人一个 HMAC 令牌）+ `POST /api/report`（浏览器 SSO 身份） |
 | 访问控制 | SSO 守卫（`withGuard`）+ 门户白名单 |
 
-成员改成上报线上（每人一次；`Token` 由管理员按 ERP 生成）：
+成员改成上报线上（每人一次）。`Token` 首选自助领取：用本人京东身份打开
+**https://jx-selfop-board.joyapp.jd.com/token** ，页面显示本人令牌 + 拼好的安装命令，复制即可
+（只认 SSO 身份，不给别人的令牌；不在名册 403、未登录 401、未配密钥 503）。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <ERP> -Name <姓名> -Token <本人令牌>
 ```
 
-管理员生成令牌（`INGEST_SECRET` 只在本机 `publish/ingest-secret.txt` 与平台 `deployEnv`，不要外发）：
+管理员兜底生成令牌（离线发放 / 核对；`INGEST_SECRET` 只在本机 `publish/ingest-secret.txt` 与平台 `deployEnv`，不要外发）：
 
 ```powershell
 $env:JX_INGEST_SECRET = "<secret>"

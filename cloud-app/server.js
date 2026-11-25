@@ -201,7 +201,7 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
-const PAGE_ALIASES = { '/': 'index.html', '/full': 'full.html', '/demo': 'demo.html' };
+const PAGE_ALIASES = { '/': 'index.html', '/full': 'full.html', '/demo': 'demo.html', '/token': 'token.html' };
 
 function serveStatic(res, pathname) {
   const alias = PAGE_ALIASES[pathname];
@@ -228,6 +228,33 @@ async function handle(req, res) {
 
   if (pathname === '/health' || pathname === '/healthz' || pathname === '/api/health') {
     return sendJson(res, 200, { ok: true, dataLayer: store.usingDataLayer, ingest: Boolean(SECRET) });
+  }
+
+  // 自助领取上报令牌：只返回「当前 SSO 身份本人」的那一个，不支持指定他人
+  if (pathname === '/api/token' && req.method === 'GET') {
+    if (!SECRET) return sendJson(res, 503, { ok: false, error: '服务未配置上报密钥，请联系管理员' });
+    const identity = identityOf(req);
+    if (!identity) {
+      return sendJson(res, 401, {
+        ok: false,
+        error: '未取到登录身份：请从内部门户打开本页，不要直接从外部浏览器访问',
+      });
+    }
+    const person = ROSTER_BY_ERP.get(identity);
+    if (!person) {
+      return sendJson(res, 403, {
+        ok: false,
+        error: '你还不在看板名册里：请把 ERP 发给管理员登记后重试',
+        erp: identity,
+      });
+    }
+    return sendJson(res, 200, {
+      ok: true,
+      erp: identity,
+      name: person.name,
+      token: tokenFor(identity),
+      board: '/',
+    });
   }
 
   if (pathname === '/api/report' && req.method === 'POST') {
