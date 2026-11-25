@@ -1,7 +1,8 @@
 # 自营 AI 作业中枢（jx-selfop-daily-hub）
 
-> 一个 Skill + 一块看板，把 9 项自营固定作业收成一个入口：
+> 一个 Skill + 一块看板，把 **5 项每日固定作业**（秒杀 / 特价 / 超级补贴 / AI 工具使用 / 品类新差评删除）收成一个入口：
 > **今天做什么 → 按 SOP 怎么做 → 做完留痕 → 管理员一屏看完成。**
+> 另 4 项非每日作业（便宜包邮 / 官方直降打标 / 售后回收 / 新人价）按需唤起，不进默认清单。
 
 这不是一套新的业务接口，而是**编排层**：把散在各人手里的提示词、活动参数、回读口径，
 固化成可安装、可分发、可统计的作业台。真正的取数与提交仍由
@@ -13,7 +14,7 @@
 
 | 角色 | 之前 | 现在 |
 |---|---|---|
-| 采销成员 | 9 项作业靠记忆和群消息，口径每次现问 | 一条 `plan` 出今日执行单，每项带 SOP、依赖、完成标准 |
+| 采销成员 | 5 项作业靠记忆和群消息，口径每次现问 | 一条 `plan` 出今日执行单，每项带 SOP、依赖、完成标准 |
 | 采销成员 | 做完没人知道，周会靠回忆 | `done` / `fail` 一条命令留痕，自动上报 |
 | 管理员 | 挨个问「超补报了吗」「差评处理了吗」 | 看板一屏看全员 × 今日作业矩阵，缺谁一眼看到 |
 | 团队 | 人一换，经验带走 | SOP 和参数在仓库里，新人装完就能跑 |
@@ -25,7 +26,8 @@
 ## 二、先看三条铁律
 
 1. **只用本人登录态和业务权限**。不借号、不跨采销查数、不替别人接受协议或提交。
-2. **没有回读就不算完成**。平台受理、接口 `success`、提交回执都不是成功判据，必须按各 SOP 的回读口径确认。
+2. **跑完并成功提交就算完成**。本人用技能提交成功即可记 `done`，提交回执 / 数量 / 失败明细写进 summary；
+   回读结果建议一并记录，但不再作为完成门槛（差评删除、AI 工具提问这类没有提交回执的，仍要写实际执行结果）。
 3. **没有留痕就不算完成**。执行后用 `done` 写摘要 / 指标 / 证据；失败必须写平台原始原因，禁止空口标完成。
 
 ---
@@ -47,7 +49,7 @@ jx-selfop-daily-hub/
 ├─ cloud-app/                   # 京东想象力平台部署版（实时矩阵 + 上报接口）
 ├─ automation/                  # 每日执行单生成 + Windows 计划任务注册
 └─ references/
-   ├─ sop/01..11               # 逐项 SOP（默认下发 9 项，已下线在 _retired/）
+   ├─ sop/01..06               # 5 项每日作业 SOP；_ondemand/ 是按需 4 项，_retired/ 是已下线
    ├─ task-matrix.md           # 作业清单与成熟度
    ├─ status-model.md          # 状态与完成率口径
    ├─ distribution.md          # 分发、部署、权限、安全
@@ -95,8 +97,8 @@ powershell -ExecutionPolicy Bypass -File install.ps1 `
 写本人配置到 `%USERPROFILE%\.jx-selfop\config.json`、跑一次身份校验。
 
 > `-Erp` 填**你自己的 ERP**（例如 `huoyujia6`）。
-> 仓库自带的 `data/roster.json` 里是 `zhangsan1` / `lisi2` 这类**示例占位**，不是真人，
-> 也不需要你改成他们——安装只会把**你本人**写进本机名册，线上看板按领取/上报自动入册。
+> 安装只会把**你本人**写进本机名册（`data/roster.json`），线上看板按本人领取令牌 / 上报自动入册；
+> 不需要你手改名册，也不会把别人写进你的机器。
 
 > 走线上看板时把 `-Server` 换成管理员给的地址，并加 `-Token <本人令牌>`。
 > 令牌一人一个，按 ERP 生成，不能自选也不能手改，用别人的 ERP 领不到也上报不上去。
@@ -122,9 +124,9 @@ python scripts/jx_task.py plan
 # 开始
 python scripts/jx_task.py start --task super_subsidy
 
-# 按 references/sop/01-super-subsidy.md 执行，完成平台回读
+# 按 references/sop/01-super-subsidy.md 执行并提交成功（回读建议记录）
 
-# 完成留痕（至少一项证据）
+# 完成留痕（提交回执 / 数量写进 summary；回读可选）
 python scripts/jx_task.py done --task super_subsidy `
   --summary "候选12/预检10/回读新增8/异常0" `
   --metric 候选数=12 --metric 预检通过数=10 --metric 回读新增数=8 `
@@ -158,11 +160,11 @@ python scripts/jx_task.py skip --task tejia_weekly --reason "活动停报，已�
 ```text
 使用 jx-selfop-daily-hub 技能，执行今天的 <task_id>（<作业名>）。
 要求：
-1. 先读 references/sop/<NN-xxx>.md，向我复述前置条件和回读口径；
+1. 先读 references/sop/<NN-xxx>.md，向我复述前置条件和提交口径；
 2. 只用我本人的登录态，只处理我名下的 SKU；
 3. 有 dry-run 的先 dry-run，把「候选 / 剔除 / 待提交」清单给我确认；
 4. 我确认后再提交；
-5. 提交后按 SOP 回读，拿到真实结果；
+5. 提交成功后按 SOP 回读记录结果；取不到就写「回读未取到」，不要编造；
 6. 用 done / fail 留痕并上报看板；失败必须写平台原始原因。
 注意：特价（tejia_weekly）必须先出确认表，未经我确认禁止提交。
 ```
@@ -197,19 +199,22 @@ python scripts/jx_task.py skip --task tejia_weekly --reason "活动停报，已�
 
 ---
 
-## 七、9 项作业与完成口径
+## 七、5 项每日作业与完成口径
 
 | # | task_id | 作业 | 优先级 | 排期 | 计入看板 |
 |---|---|---|---|---|---|
-| 01 | `super_subsidy` | 超级补贴自动提报 | P0 | 每天 18:50 | ✅ |
+| 01 | `super_subsidy` | 超级补贴自动提报 | P0 | 每天（不限 18:50，可直接跑） | ✅ |
 | 03 | `flash_sale` | 秒杀提报 | P0 | 每天（T+3～T+5） | ✅ |
 | 04 | `tejia_weekly` | 特价提报与后续券池 | P0 | 每天 11:30（需采销确认） | ✅ |
-| 05 | `daily_tool_checkin` | 每日工具使用与双表打卡 | P0 | 每天 11:00 | ✅ |
-| 06 | `bad_review_appeal` | 差评 / 中评申诉治理 | P0 | 每天 10:10 | ✅ |
-| 08 | `cheap_free_shipping` | 特价便宜包邮 5.9-5 / 4.9-4 | P1 | 按周（默认周一） | ✅（周一） |
-| 09 | `official_discount_mark` | 官方直降打标 & 国补 & 9 折 | P1 | 按通知 | ❌ 待补 SOP |
-| 10 | `aftersale_recovery` | 售后 & 未合单 & 直赔 & 运费回收 | P1 | 按通知 | ❌ 待补 SOP |
-| 11 | `newcomer_price` | 新人价 SKU 提报 | P1 | 按通知 | ❌ 待补 SOP |
+| 05 | `daily_tool_checkin` | AI 工具使用与双表打卡 | P0 | 每天 11:00 | ✅ |
+| 06 | `bad_review_appeal` | 品类新差评删除 | P0 | 每天 10:10 | ✅ |
+
+全员作业：5 项都算每人一项，但**只处理本人名下 SKU**，各人各记各的 `done`。
+
+**按需唤起（不是每日作业，不进 `plan`、不计完成率）**：
+`cheap_free_shipping`（便宜包邮）、`official_discount_mark`（官方直降打标）、
+`aftersale_recovery`（售后回收）、`newcomer_price`（新人价）。
+SOP 在 `references/sop/_ondemand/`，用户明确唤起时才执行。
 
 > **2026-11-24 起下线两项**：`ad_profit_guard`（广告入池出池 / 广告止损）与 `spu_daily_drop_board`（SPU 骤降）不再进入每日清单，`plan` / `today` / 看板都不再调度。
 > SOP 存档在 `references/sop/_retired/`，恢复步骤见该目录 README。
@@ -230,7 +235,7 @@ python scripts/jx_task.py skip --task tejia_weekly --reason "活动停报，已�
 
 | 状态 | 含义 | 计入完成 |
 |---|---|---|
-| `done` | 已按 SOP 执行并回读验收 | ✅ |
+| `done` | 已按 SOP 跑完并成功提交（回读结果建议记录） | ✅ |
 | `skipped` | 当天确实不适用，且写明原因 | ✅（不计失败） |
 | `running` | 已开始未收口 | ❌ |
 | `failed` | 执行失败，保留原始原因 | ❌ |
@@ -276,7 +281,7 @@ New-NetFirewallRule -DisplayName "JX Selfop Dashboard" -Direction Inbound `
 3. 迭代部署同一 appCode 时不要再传 `domainPrefix` / `portalName`，域名不变。
 4. 门户访问需在管理端「配置权限」逐个加白名单，不在名单里的人会被 SSO 拦住。
 
-> 线上版只接收状态与摘要，不会替人执行作业；也不能替代本机 `done/fail` 的真实回读。
+> 线上版只接收状态与摘要，不会替人执行作业，也不能替你提交；提交与留痕仍在本机会话里完成。
 
 ---
 
@@ -288,8 +293,8 @@ New-NetFirewallRule -DisplayName "JX Selfop Dashboard" -Direction Inbound `
 # 手动验证一次：生成执行单 + 写日志
 powershell -ExecutionPolicy Bypass -File automation\daily-run.ps1 -Erp <你的ERP>
 
-# 注册每天 08:55 自动生成（可顺带起本机看板）
-powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Erp <你的ERP> -Time 08:55 -StartDashboard
+# 注册每天 09:30 自动生成（可顺带起本机看板；时间按人改）
+powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Erp <你的ERP> -Time 09:30 -StartDashboard
 
 # 查看 / 移除
 schtasks /Query /TN JX-Selfop-Daily /FO LIST
@@ -300,6 +305,23 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 - **只做清单与提醒**：不会自动报名、停投、打卡、申诉。
 - 任务按「仅交互式」注册：不登录桌面不触发；休眠/关机错过就手动补跑一次。
 - 计划任务跑过 ≠ 作业完成；看板只认 `done` / `skipped`。
+
+## 九点五、按人改开工时间 / 频道页限制规则
+
+默认开工时间是 **09:30**。用户可以直接在对话里说「我改成 09:00 开工」「今天秒杀 10:30 再跑」，
+Agent 用 `config` 写进 `%USERPROFILE%\.jx-selfop\overrides.json`（本机覆盖，不动仓库文件，重装不丢）：
+
+```powershell
+python scripts/jx_task.py config --show                          # 当前开工时间 + 个人覆盖
+python scripts/jx_task.py config --start-time 09:00              # 改本人每日开工时间
+python scripts/jx_task.py config --task flash_sale --time 10:30  # 改单项作业时间
+python scripts/jx_task.py config --task tejia_weekly --note "今天只报毛利≥8% 的 SKU"
+python scripts/jx_task.py config --task tejia_weekly --disable   # 临时不做（当天/本周期）
+python scripts/jx_task.py config --task tejia_weekly --enable
+```
+
+频道页限制规则（resourceId / areaId / 场次 / 毛利门槛 / 审核窗口）写在 `data/tasks.json` 的 `constraints`，
+`plan` 会原样打印；临时加严用 `--note`，不要改仓库文件。
 
 ---
 
@@ -320,18 +342,17 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 `erp` 必须唯一；看板按 `erp` 统计。
 
 - **成员机器**：保持“只有本人”即可，重装不会丢（`init` 会自愈补回本人）。
-- **管理员机器**：要按团队矩阵看，就把 `data/roster.example.json` 复制成 `data/roster.json`，
-  换成真实姓名 + ERP，并同步 `data/tasks.json` 里各任务的 `owners`。
-- 仓库里的 `zhangsan1` / `lisi2` 等是**示例占位（非真人）**，只出现在 `tasks.json` 的 `owners` 与
-  `roster.example.json` 中；安装时 `init` 会把这些负责人专属作业自动指向执行人，
-  所以同事装完就能看到超补 / 秒杀 / 特价，不需要管理员手工改 JSON。
+- **管理员机器**：要按团队矩阵看，就把 `data/roster.example.json` 复制成 `data/roster.json`，换成真实姓名 + ERP。
+  5 项每日作业都是全员作业（`scope=all`），**不需要**再给每项填 `owners`。
+- 名册只认 ERP；没确认 ERP 的同事先记在 `data/roster.pending.json`，等本人装完领令牌会自动入册。
 
 ### `data/tasks.json` — 任务注册表
 
 | 字段 | 说明 |
 |---|---|
-| `owners` | 负责人 ERP 列表；`[]` 表示待指派 |
-| `scope` | `owner` = 只处理本人名下 SKU；`all` = 全员作业 |
+| `owners` | 专属负责人 ERP 列表；`[]` + `scope=all` = 全员作业（5 项默认都是这种） |
+| `scope` | `all` = 全员作业（各人只处理本人名下 SKU）；`owner` = 只落在指定负责人名下 |
+| `constraints` | 频道页限制规则（资源位 / 场次 / 毛利门槛 / 窗口），`plan` 原样打印 |
 | `schedule` | `daily` / `weekly` + `time` + `grace_minutes` |
 | `resource_id` / `area_id` / `activity_id` | 活动参数，换活动三值一起改 |
 | `requires_confirm` | `true` 时提交前必须给采销确认表（特价默认开） |
@@ -354,8 +375,8 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 
 ### 半自动（Agent 执行 + 人确认）
 
-- 超级补贴 / 秒杀 / 特价 / 便宜包邮：能拉候选、做归属与毛利过滤、生成提交清单；
-  **提交前必须人确认**，提交后必须回读。
+- 超级补贴 / 秒杀 / 特价：能拉候选、做归属与毛利过滤、生成提交清单；
+  **提交前必须人确认**，提交成功后记 `done`（回读建议记录）。
 - 广告入池出池 / 广告止损：2026-11-24 起不在默认清单内；历史 SOP 见 `references/sop/_retired/`。
 - 差评申诉：依赖本机提报程序与有效 Cookie，缺了就 `blocked`。
 - 特价后续券池（5.9-5 / 4.9-4）：**只评估、不直接报**，两条承担公式都 ≥0 才允许进池。
@@ -365,8 +386,8 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 | 做不到 | 原因 |
 |---|---|
 | 无人值守自动报名 / 停投 / 打卡 / 申诉 | 平台写操作需本人登录态与会话内确认 |
-| 自动识别「没走技能、自己手工做完」的人 | 没有平台侧回读就无法判定，只能人工登记 |
-| 09 / 10 / 11 三项按猜测执行 | PDF 只有名称，没有负责人和细则，标 `needs_sop` |
+| 自动识别「没走技能、自己手工做完」的人 | 技能只在会话里跑过才留痕，手工做完必须自己登记 |
+| 按需 4 项（便宜包邮 / 官方直降 / 售后回收 / 新人价）自动纳入每日清单 | 用户明确唤起才执行，细则不全，禁止擅自跑 |
 | 代查别人商品、借用他人账号 | 越权，直接禁止 |
 | 自动改标题 / 京东价 / 券促 / 上下架 | 不可逆写操作，必须人工决策 |
 | 断网/休眠期间继续跑 | 计划任务仅交互式触发，唤醒后手动补 |
@@ -395,14 +416,17 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 <仓库地址 / zip 包地址>
 
 它会做三件事：
-1. 每天告诉你该做哪几项作业，按时间排好（超补 / 秒杀 / 特价 / 差评申诉 / 工具打卡 等 9 项）；
+1. 每天 09:30（可改）告诉你该做哪几项作业，按时间排好（秒杀 / 特价 / 超补 / AI 工具使用 / 品类新差评删除 共 5 项）；
 2. 每项都有 SOP，照步骤执行，不用再问口径；
-3. 做完自动留痕并上报到通用看板 https://jx-selfop-board.joyapp.jd.com/ ，谁没做一眼看到。
+3. 提交完自动留痕并上报到通用看板 https://jx-selfop-board.joyapp.jd.com/ ，谁没做一眼看到。
 
 安装（Windows，5 分钟）：
-git clone <仓库地址>
+1) 先领自己的令牌（一人一个）：用本人京东身份打开 https://jx-selfop-board.joyapp.jd.com/token ，
+   页面会给一段已填好你 ERP / 姓名 / 令牌的安装命令，整段复制到 PowerShell 跑完即可。
+2) 或者手敲（没令牌也能装，只是不自动汇总）：
+git clone https://github.com/yujiahuo517-maker/jx-selfop-daily-hub.git
 cd jx-selfop-daily-hub
-powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <你的ERP> -Name <你的姓名> -Token <管理员给的令牌>
+powershell -ExecutionPolicy Bypass -File install.ps1 -Erp <你的ERP> -Name <你的姓名>
 python scripts/jx_task.py plan
 
 前置：Python 3.11+；Node 18+ 只有本机看板需要；京东内网登录态；
@@ -411,7 +435,7 @@ python scripts/jx_task.py plan
 看板地址已内置，不用再填 -Server；装完会自动跑 doctor 自检，
 有 [fail] 按提示补齐再开工。
 
-规矩：写平台前一定先给确认清单，你点头才提交；没有平台回读的，不算完成。
+规矩：写平台前一定先给确认清单，你点头才提交；提交成功即算完成，回读结果建议一并记录。
 ```
 
 令牌首选让同事自己领（一人一个、按 ERP 生成、离职自动失效）：
@@ -463,8 +487,8 @@ git ls-files | Select-String -Pattern "_env.js|_data_client.js|_ssa_guard.js|rep
 | PowerShell 5.1 抓 CSV 报 `NullReferenceException` | 用 `curl.exe` 或 `Invoke-RestMethod` 取原始内容，不要用 `Invoke-WebRequest` 解析 |
 | Python 中文乱码 | 用 Windows Terminal / PowerShell 7；CLI 已强制 UTF-8 |
 | 计划任务没触发 | 任务仅交互式；确认已登录桌面、机器未休眠，或手动跑 `daily-run.ps1` |
-| 成员换人 / 调岗 | 改 `data/roster.json` 与 `tasks.json` 的 `owners`，重新分发 |
-| `plan` 里没有超补 / 秒杀 / 特价 | 重跑 `install.ps1 -Erp <本人ERP> -Name <姓名>`，`init` 会把负责人作业自动指向本人；仍缺再查 `tasks.json` 的 `owners` |
+| 成员换人 / 调岗 | 成员本人重装（`install.ps1 -Erp <本人ERP> -Name <姓名>`）即自动入册；调走的人在看板名册里删掉 |
+| `plan` 里作业不全 | 跑 `doctor` 看作业清单与名册；`data/tasks.json` 应是 5 项且 `scope=all` |
 | 线上看板打不开 | 门户白名单没加人，或 SSO 未登录；找管理员在「配置权限」里加 |
 
 ---

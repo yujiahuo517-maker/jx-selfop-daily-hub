@@ -1,18 +1,22 @@
 ---
 name: jx-selfop-daily-hub
-description: 京喜自营采销「AI 作业中枢」：把超级补贴、秒杀、特价、每日工具打卡、差评申诉等 9 项固定作业汇总为一个入口，按本人 ERP 生成每日执行单、逐个按 SOP 执行并留痕，再汇总到通用作业完成看板 https://jx-selfop-board.joyapp.jd.com/ ；支持安装自检（doctor）与注册 Windows 计划任务每日常规生成执行单。用户说「今天有什么作业」「每日执行单」「跑自营作业」「每天自动跑一遍」「自营作业看板」「看大家作业完成情况」「看板怎么装/怎么发给同事」「这套工具能做什么、边界在哪」「超级补贴/秒杀/特价/差评/工具打卡」时使用。也用于把技能分发给团队成员并配置统一上报地址。
+description: 京喜自营采销「AI 作业中枢」：把秒杀、特价、超级补贴、AI 工具使用（双表打卡）、品类新差评删除这 5 项每日固定作业汇总为一个入口，按本人 ERP 生成每日执行单（默认 09:30 开工）、逐个按 SOP 执行并留痕，再汇总到通用作业完成看板 https://jx-selfop-board.joyapp.jd.com/ ；支持安装自检（doctor）、按人改开工时间/频道页限制规则（config）、注册 Windows 计划任务每日常规生成执行单。用户说「今天有什么作业」「每日执行单」「跑自营作业」「每天自动跑一遍」「自营作业看板」「看大家作业完成情况」「看板怎么装/怎么发给同事」「这套工具能做什么、边界在哪」「超级补贴/秒杀/特价/差评删除/AI 工具打卡」时使用。也用于把技能分发给团队成员并配置统一上报地址。
 ---
 
 # 自营 AI 作业中枢（jx-selfop-daily-hub）
 
-一个入口，管住 9 项自营固定作业：**知道今天做什么 → 按 SOP 执行 → 执行即留痕 → 管理员看完成**。
+一个入口，管住 **5 项每日固定作业**（秒杀 / 特价 / 超级补贴 / AI 工具使用 / 品类新差评删除）：
+**知道今天做什么 → 按 SOP 执行 → 提交成功即留痕 → 管理员看完成**。
+另有 4 项非每日作业（便宜包邮、官方直降打标、售后回收、新人价）放在 `references/sop/_ondemand/`，
+用户明确唤起时才做，不进默认清单、不计完成率。
 
 本技能来自《自营AI能力研发进展.pdf》，把原本分散在各人手里的提示词合并成统一作业台。PDF 原件与逐项拆解见 `references/task-matrix.md`。
 
 ## 先记住三条铁律
 
 1. **只用本人登录态和业务权限**。不借号、不跨采销查数、不替别人接受协议或提交。
-2. **没有回读就不算完成**。平台受理、接口 success、提交回执都不是成功判据；必须按各 SOP 的回读口径确认。
+2. **跑完并成功提交就算完成**。本人用技能跑完、平台提交成功即可记 `done`，提交回执/数量/失败明细写进 summary；
+   回读结果建议一并记录，但不再作为完成门槛。没有提交回执的作业（差评删除、AI 工具提问）仍要写实际执行结果。
 3. **没有留痕就不算完成**。执行后用 `done` 写入摘要/指标/证据；失败必须写平台原始原因。禁止空口标完成。
 
 ## 快速开始
@@ -25,10 +29,10 @@ python scripts/jx_task.py today
 ```
 
 `--erp` 填**本人 ERP**；`--server` 默认就是通用看板 `https://jx-selfop-board.joyapp.jd.com`，一般不用填。
-`data/tasks.json` 的 `owners` 里 `zhangsan1` / `lisi2` 是**示例占位（非真人）**：`init` 会把负责人专属
-作业自动指向本人，并把本人写进 `data/roster.json`，所以装完就能看到超补 / 秒杀 / 特价。
+5 项每日作业全部是**全员作业**（`scope=all`、`owners=[]`），装完就能看到全部 5 项；
+`init` 只把本人写进 `data/roster.json`，不会把别人写进你的机器。
 
-`plan` 是每日主入口：按计划时间排出今天该做的作业，带 SOP 路径、依赖、完成标准、留痕模板和「下一个动作」。
+`plan` 是每日主入口：按计划时间排出今天该做的作业，带开工时间（默认 09:30）、SOP 路径、依赖、完成标准、频道页限制规则、留痕模板和「下一个动作」。
 `today` 是同一份数据的简版列表（兼容旧用法）。每项作业都有固定 `task_id`，SOP 在 `references/sop/`。
 
 ### 每项作业的执行闭环
@@ -61,8 +65,8 @@ python scripts/jx_task.py skip --task tejia_weekly --reason "本周活动停报�
 # 手动验证一次：生成执行单 + 写日志
 powershell -ExecutionPolicy Bypass -File automation\daily-run.ps1 -Erp <本人ERP>
 
-# 注册每天 08:55 自动生成（顺带起本地看板）
-powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Erp <本人ERP> -Time 08:55 -StartDashboard
+# 注册每天 09:30 自动生成（顺带起本地看板；时间可按人改）
+powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Erp <本人ERP> -Time 09:30 -StartDashboard
 
 # 查看 / 移除
 schtasks /Query /TN JX-Selfop-Daily /FO LIST
@@ -79,23 +83,33 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 1. 运行 `plan`：按计划时间排序（无固定时间的排最后，同一时段 P0 优先），先做最早到期的一项。
 2. 到 `references/sop/` 读对应 SOP，**先确认前置条件**（登录态、活动配置、数据日期、本人商品范围）。
 3. 调用对应依赖技能/工具执行；平台要求 dry-run 的必须先预演。
-4. 回读验收，记录关键数字和证据链接。
+4. 回读验收（建议），记录关键数字和证据链接。
 5. `done` 或 `fail`，有管理员采集地址时自动上报。
 6. 一天结束运行 `status` 自查；管理员运行 `summary` 或打开看板。
 
-## 9 项作业索引
+## 5 项每日固定作业
 
 | task_id | 作业 | 优先级 | 负责人 | 排期 | SOP |
 |---|---|---|---|---|---|
-| `super_subsidy` | 超级补贴自动提报 | P0 | 张三 | 每天 18:50 | [01](references/sop/01-super-subsidy.md) |
-| `flash_sale` | 秒杀提报 | P0 | 张三 | 每天（T+3～T+5） | [03](references/sop/03-flash-sale.md) |
-| `tejia_weekly` | 特价提报与后续券池评估 | P0 | 张三 | 每天 11:30（需采销确认） | [04](references/sop/04-tejia-weekly.md) |
-| `daily_tool_checkin` | 每日工具使用与双表打卡 | P0 | 全员 | 每天 11:00 | [05](references/sop/05-daily-tool-checkin.md) |
-| `bad_review_appeal` | 差评 / 中评申诉治理 | P0 | 全员 | 每天 10:10 | [06](references/sop/06-bad-review-appeal.md) |
-| `cheap_free_shipping` | 特价便宜包邮 5.9-5 / 4.9-4 | P1 | 张三 | 按周（默认周一） | [08](references/sop/08-cheap-free-shipping.md) |
-| `official_discount_mark` | 官方直降打标 & 国补 & 9 折 | P1 | 待指派 | 按通知 | [09](references/sop/09-official-discount-mark.md) |
-| `aftersale_recovery` | 售后 & 未合单 & 直赔 & 运费回收 | P1 | 待指派 | 按通知 | [10](references/sop/10-aftersale-recovery.md) |
-| `newcomer_price` | 新人价 SKU 提报 | P1 | 待指派 | 按通知 | [11](references/sop/11-newcomer-price.md) |
+| `super_subsidy` | 超级补贴自动提报 | P0 | 全员 | 每天（不限 18:50，可先跑） | [01](references/sop/01-super-subsidy.md) |
+| `flash_sale` | 秒杀提报 | P0 | 全员 | 每天（T+3～T+5） | [03](references/sop/03-flash-sale.md) |
+| `tejia_weekly` | 特价提报与后续券池评估 | P0 | 全员 | 每天 11:30（需采销确认） | [04](references/sop/04-tejia-weekly.md) |
+| `daily_tool_checkin` | AI 工具使用与双表打卡 | P0 | 全员 | 每天 11:00 | [05](references/sop/05-daily-tool-checkin.md) |
+| `bad_review_appeal` | 品类新差评删除 | P0 | 全员 | 每天 10:10 | [06](references/sop/06-bad-review-appeal.md) |
+
+**全员** = 每个人都有这一项，但每人不跨人查数：只处理本人名下 SKU，各记各的 `done`。
+作业内容只这 5 项：不提报新人价，不做广告入池出池 / 广告止损看板 / SPU 骤降。
+
+### 按需唤起（不是每日作业）
+
+| task_id | 作业 | SOP |
+|---|---|---|
+| `cheap_free_shipping` | 特价便宜包邮 5.9-5 / 4.9-4 | [_ondemand/08](references/sop/_ondemand/08-cheap-free-shipping.md) |
+| `official_discount_mark` | 官方直降打标 & 国补 & 9 折 | [_ondemand/09](references/sop/_ondemand/09-official-discount-mark.md) |
+| `aftersale_recovery` | 售后 & 未合单 & 直赔 & 运费回收 | [_ondemand/10](references/sop/_ondemand/10-aftersale-recovery.md) |
+| `newcomer_price` | 新人价 SKU 提报 | [_ondemand/11](references/sop/_ondemand/11-newcomer-price.md) |
+
+这 4 项不进 `plan` 默认清单、不计完成率；用户明确说「今天顺手把便宜包邮做了」这类话才按对应 SOP 执行。
 
 ### 固定资源位（2026-11-20 起，本机实跑校准）
 
@@ -113,7 +127,23 @@ powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregiste
 特价 `requires_confirm=true`：**提交前必须给采销出确认表**（报哪些 SKU / 报名价 / 库存），
 确认后才允许 `table_apply`；报名价取建议价，不超额、不降价报入。后续券池只做评估，不直接报名。
 
-> 09/10/11 在 PDF 中只有作业名称，没有负责人和操作细则。**禁止自行编造流程**；先补 `references/sop/` 与 `data/tasks.json` 的 owners，再启用。
+> 08/09/10/11 只有作业名和粗流程，**禁止自行编造细则**，已归档到 `references/sop/_ondemand/`。
+
+## 按人改开工时间 / 频道页限制规则
+
+默认开工时间是 **09:30**，可直接在对话里让技能改（写入 `%USERPROFILE%\.jx-selfop\overrides.json`，不动仓库文件）：
+
+```powershell
+python scripts/jx_task.py config --show                          # 看当前开工时间与个人覆盖
+python scripts/jx_task.py config --start-time 09:00              # 改本人每日开工时间
+python scripts/jx_task.py config --task flash_sale --time 10:30  # 改单项作业时间
+python scripts/jx_task.py config --task tejia_weekly --note "今天只报毛利≥8% 的 SKU"
+python scripts/jx_task.py config --task tejia_weekly --disable   # 当天/本周期不参与
+python scripts/jx_task.py config --task tejia_weekly --enable
+```
+
+频道页限制规则（资源位、场次、毛利门槛、审核窗口）写在 `data/tasks.json` 的 `constraints` 里，`plan` 会原样打印；
+本人要临时加严（比如「今天特价只报 3 个」）用上面的 `--note`，不要改仓库文件。
 
 ## 管理员看板
 
@@ -124,7 +154,7 @@ python scripts/jx_task.py serve --port 8080
 # 浏览器打开 http://127.0.0.1:8080/
 ```
 
-- 首页 `/` 是**简洁矩阵版**：一屏名册内成员 × 各自今日计入项（全员项按人展开，负责人专属项只落在本人名下；周一含便宜包邮），绿=完成、蓝=进行中、红=失败、灰=未开始、浅灰=不适用；顶部只有日期和合计完成率。`count_in_rate=false` 的作业（官方直降打标 / 售后回收 / 新人价这类待补 SOP 项）只留痕、不上矩阵。
+- 首页 `/` 是**简洁矩阵版**：一屏名册内成员 × 5 项每日作业（全员项按人展开），绿=完成、蓝=进行中、红=失败、灰=未开始、浅灰=不适用；顶部只有日期和合计完成率。按需项与 `count_in_rate=false` 的作业只留痕、不上矩阵。
 - 需要完成率明细、失败原因、14 天趋势、人员明细和 CSV 时开 `/full.html`（完整版）。
 - 采集接口：`POST http://<管理员IP>:8080/api/report`，由成员技能自动调用。
 - 成员只需在初始化时填 `--server http://<管理员IP>:8080`；断网时记录留在本机，恢复后 `report` 补报。
@@ -144,7 +174,7 @@ python scripts/jx_task.py serve --port 8080
 
 | 状态 | 含义 | 是否计入完成 |
 |---|---|---|
-| `done` | 已按 SOP 执行并回读验收 | 是 |
+| `done` | 已按 SOP 跑完并成功提交（回读结果建议记录） | 是 |
 | `skipped` | 当天确实不适用，且写明原因 | 是（不计失败） |
 | `running` | 已开始、未收口 | 否 |
 | `failed` | 执行失败，保留原始原因 | 否 |
@@ -201,24 +231,24 @@ python scripts/jx_task.py plan
 
 | 作业 | 依赖 | 不可用时的处理 |
 |---|---|---|
-| 超级补贴 / 秒杀 / 特价 / 便宜包邮 / 新人价 | `blacklight`（yx / bybt / jzt / osw / EasyBI） | 停止写操作，`fail --status blocked`，不手拼接口 |
-| 每日工具打卡 | 浏览器 + JoySpace 登录态 | 未实际提问/未保存成功即 `fail`，不得虚假打卡 |
-| 差评治理 | 本机 `京东采销自动化助手_直接提报` | 缺程序或 cookie 过期时 `fail`，附缺失路径/日志 |
+| 超级补贴 / 秒杀 / 特价 | `blacklight`（yx / bybt / jzt / osw / EasyBI） | 停止写操作，`fail --status blocked`，不手拼接口 |
+| AI 工具使用 / 双表打卡 | 浏览器 + JoySpace 登录态（无接口，人工点表） | 未实际提问/未保存成功即 `fail`，不得虚假打卡 |
+| 品类新差评删除 | 本机 `京东采销自动化助手_直接提报`（全员已装） | 缺程序或 cookie 过期时 `fail`，附缺失路径/日志 |
 | 看板采集 | 管理员 Node 服务 | 离线可用，恢复后 `report` 补报 |
 
 ## 强制边界
 
 - 不自动修改商品标题、京东价、券促、上下架状态；不自动退出活动。
-- 不把平台受理、接口 success、提交回执当作最终成功；以 SOP 指定回读为准。
+- 提交成功即可记 `done`，但不得用「接口 success」代替真实提交结果；读不到提交回执就记 `blocked` / `fail` 并写原始报错。
 - 不编造缺失数据；接口失败/字段缺失就写「未取到」。
 - 不跨账号、不借用他人登录态、不替他人接受协议。
-- 09/10/11 未补 SOP 前只允许登记和提醒，不允许执行猜测性写操作。
+- 按需项（便宜包邮 / 官方直降 / 售后回收 / 新人价）只在用户明确唤起时执行，不允许擅自纳入每日作业。
 - 管理员手工修正只用于纠错，不作为日常完成手段；看板会保留 `manual-admin` 来源。
 - 完整能力清单与明确做不到的事见 `references/capability-boundary.md`；对外承诺前先读它。
 
 ## 相关文件
 
-- `references/task-matrix.md`：PDF 作业的完整映射、负责人、排期、成熟度（默认下发 9 项，2 项已下线）。
+- `references/task-matrix.md`：PDF 作业的完整映射、排期、成熟度（默认下发 5 项，4 项按需，2 项已下线）。
 - `references/status-model.md`：状态、指标、上报与看板计算口径。
 - `references/distribution.md`：分发、采集服务部署、权限与安全。
 - `references/capability-boundary.md`：这套工具能做什么、做不到什么、什么时候必须找人。

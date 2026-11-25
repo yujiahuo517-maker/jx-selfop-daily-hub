@@ -10,7 +10,7 @@
   执行人 ERP，写进计划任务参数。
 
 .PARAMETER Time
-  每天触发时间 HH:mm，默认 08:55。
+  每天触发时间 HH:mm，默认 09:30。
 
 .PARAMETER TaskName
   计划任务名称，默认 JX-Selfop-Daily。
@@ -25,14 +25,14 @@
   注册后立刻跑一次验证。
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Erp zhangsan1 -Time 08:55
+  powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Erp zhangsan1 -Time 09:30
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File automation\register-task.ps1 -Unregister
 #>
 param(
     [string]$Erp = "",
-    [string]$Time = "08:55",
+    [string]$Time = "09:30",
     [string]$TaskName = "JX-Selfop-Daily",
     [switch]$StartDashboard,
     [int]$Port = 8080,
@@ -52,7 +52,7 @@ if ($Unregister) {
     return
 }
 
-if ($Time -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw "时间格式应为 HH:mm，例如 08:55，实际：$Time" }
+if ($Time -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw "时间格式应为 HH:mm，例如 09:30，实际：$Time" }
 
 $inner = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runner`""
 if ($Erp) { $inner += " -Erp $Erp" }

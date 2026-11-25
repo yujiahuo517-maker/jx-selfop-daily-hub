@@ -1,5 +1,37 @@
 # 变更记录
 
+## 2026-11-25 · v1.4 收敛为 5 项每日作业 + 提交即完成 + 09:30 开工
+
+**作业清单（9 项 → 5 项）**
+
+- 每日固定作业只剩 5 项：`super_subsidy`（超级补贴）、`flash_sale`（秒杀）、`tejia_weekly`（特价）、
+  `daily_tool_checkin`（AI 工具使用 + 双表打卡）、`bad_review_appeal`（品类新差评删除）。
+- 5 项全部改为**全员作业**（`scope=all`、`owners=[]`）：每人都有，各人只处理本人名下 SKU。
+- 不提报新人价；不做广告入池出池 / 广告止损看板 / SPU 骤降。
+- 便宜包邮 / 官方直降打标 / 售后回收 / 新人价 4 项移入 `references/sop/_ondemand/`：
+  **不是每日作业**，用户明确唤起才执行，不进 `plan`、不计完成率。
+- 超级补贴不再等 18:50：按采销确认可直接跑，平台若提示未到报名时间记 `blocked` 并写原始报错。
+
+**完成口径**
+
+- 采销用技能跑完并**成功提交即 `done`**；提交回执 / 数量 / 失败明细写进 summary。
+- 平台回读从「完成门槛」降为「建议记录」；读不到就写「回读未取到」，禁止编造。
+- 没有提交回执的作业（差评删除、AI 工具提问）仍要写实际执行结果。
+
+**开工时间与频道页限制规则**
+
+- 默认开工时间改为 **09:30**（`automation/register-task.ps1` 默认 `-Time 09:30`、`init` 写入 `start_time`）。
+- 新增 `python scripts/jx_task.py config`：`--start-time` / `--task <id> --time` / `--note` / `--disable/--enable`，
+  写本机 `%USERPROFILE%\.jx-selfop\overrides.json`，不动仓库文件、重装不丢。
+- `data/tasks.json` 每项新增 `constraints`（resourceId / areaId / 场次 / 毛利门槛 / 审核窗口），`plan` 原样打印。
+
+**名册**
+
+- `data/roster.json` 与 `cloud-app/data/roster.json` 只保留已确认 ERP（huoyujia6 霍煜嘉、yangxuemeng1 杨雪蒙）；
+  其余 4 人（杨浩、刘富瑶、刘珍珍、罗咏心）记入 `data/roster.pending.json` 待补 ERP，**不猜拼音**。
+- 成员本人跑 `install.ps1` 或在 `/token` 领令牌即自动入册，管理员不必改名册重部署。
+- `cloud-app/data/tasks.json` 与根目录同步为 5 项，看板矩阵按 5 项 × 名册展开。
+
 ## 2026-11-25 · v1.3 安装即回读使用情况
 
 - 新增使用心跳：`scripts/jx_task.py` 每条命令执行后自动 `POST /api/usage`（本人令牌鉴权），
@@ -41,4 +73,4 @@
 **口径**
 
 - 看板矩阵按名册展开，不再写死 7 人；`count_in_rate=false` 的作业只留痕不上矩阵。
-- `data/tasks.json` 与 `cloud-app/data/tasks.json` 保持一致（9 项）。
+- `data/tasks.json` 与 `cloud-app/data/tasks.json` 保持一致（v1.4 起为 5 项）。

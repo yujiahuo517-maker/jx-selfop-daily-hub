@@ -2,8 +2,8 @@
 
 - task_id：`tejia_weekly`
 - 优先级：P0
-- 执行人：张三
-- 排期：每周一
+- 执行人：全员（各自用本人 ERP，只处理本人名下 SKU）
+- 排期：每天 11:30（审核窗口 11:00-15:00）；提交前必须采销本人确认清单
 - 依赖：`blacklight`（yx / ms 表格报名）
 
 ## 一、报名范围与门槛
@@ -63,3 +63,6 @@ python scripts/jx_task.py done --task tejia_weekly `
   --metric 可报总数=120 --metric 归属过滤后=18 --metric 规则剔后=14 --metric 提交数=14 --metric 成功数=13 --metric 失败数=1 `
   --evidence 回查=ms_submit_list(38801203) 失败明细xlsx
 ```
+
+「提交成功」即可记 `done`（前提：清单已由采销本人确认）；提交失败、重复占坑、价格被驳回均为 `fail`，
+并写平台原始原因。回查结果建议写进 summary，不作为完成门槛。

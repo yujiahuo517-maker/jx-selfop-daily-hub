@@ -1,37 +1,12 @@
 [
   {
-    "name": "周八",
-    "erp": "zhouba6",
-    "team_id": "00046419"
+    "erp": "huoyujia6",
+    "name": "霍煜嘉",
+    "team_id": ""
   },
   {
-    "name": "张三",
-    "erp": "zhangsan1",
-    "team_id": "00046419"
-  },
-  {
-    "name": "王五",
-    "erp": "wangwu3",
-    "team_id": "00046419"
-  },
-  {
-    "name": "郑九",
-    "erp": "zhengjiu7",
-    "team_id": "00046419"
-  },
-  {
-    "name": "赵六",
-    "erp": "zhaoliu4",
-    "team_id": "00046419"
-  },
-  {
-    "name": "李四",
-    "erp": "lisi2",
-    "team_id": "00046419"
-  },
-  {
-    "name": "孙七",
-    "erp": "sunqi5",
-    "team_id": "00046419"
+    "erp": "yangxuemeng1",
+    "name": "杨雪蒙",
+    "team_id": ""
   }
 ]

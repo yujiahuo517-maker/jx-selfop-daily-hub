@@ -37,13 +37,14 @@
 3. 展开人员：`scope=all` 展开为 `data/roster.json` 里的全体成员；`scope=owner` 展开为 `owners` 中的人。
 4. 得到 `(task, person)` 对，即为当天应完成清单。
 
-示例（设名册 N 人）：
+示例（设名册 N 人，v1.4 口径）：
 
-- 全员项 2 个 × N 人 = 2N：每日工具打卡、差评治理。
-- 负责人专属项：超级补贴、秒杀、特价，只落在 `owners` 指定的人身上。
-- 应完成项合计 = 2N + 当日命中作业的负责人数。
-- `official_discount_mark` / `aftersale_recovery` / `newcomer_price` 等 `count_in_rate=false` 的作业**只落库留痕，不计入完成率与看板矩阵**（2026-11-20 起口径；原 `ad_profit_guard`、`spu_daily_drop_board` 已于 2026-11-24 下线）。
-- 特价与便宜包邮默认只在周一命中。
+- 5 项每日作业全部是全员项（`scope=all`、`owners=[]`）：超级补贴、秒杀、特价、AI 工具使用、品类新差评删除。
+- 应完成项合计 = 5 × N；每人都要做，但各自只处理本人名下 SKU。
+- 按需项（`cheap_free_shipping` / `official_discount_mark` / `aftersale_recovery` / `newcomer_price`）
+  **不进默认清单、不计完成率、不上矩阵**，只在用户明确唤起时留痕。
+- `count_in_rate=false` 的作业只落库留痕（原 `ad_profit_guard`、`spu_daily_drop_board` 已于 2026-11-24 下线）。
+- 特价自 v1.4 起按每天 11:30 命中（审核窗口 11:00-15:00），不再只算周一。
 
 ## 三、完成率
 
@@ -77,7 +78,8 @@
 
 ## 六、防作弊设计
 
-1. `done` 至少要有 `--summary` / `--metric` / `--evidence` / `--url` 之一，CLI 直接拒绝空完成。
+1. `done` 至少要有 `--summary` / `--metric` / `--evidence` / `--url` 之一，CLI 直接拒绝空完成；
+   证据（平台回读）不是完成门槛，但建议记录，取不到就写「回读未取到」。
 2. 失败必须写 `--error`，不能用完成掩盖。
 3. 管理员手工修正写 `source=manual-admin`，看板保留来源，便于审计。
 4. 所有记录保留原始时间戳和摘要，不提供「删除记录」命令。

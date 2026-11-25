@@ -5,17 +5,15 @@
     "name": "超级补贴自动提报",
     "category": "每日固定作业",
     "priority": "P0",
-    "owners": [
-      "zhangsan1"
-    ],
-    "owner_label": "张三",
-    "scope": "owner",
+    "owners": [],
+    "owner_label": "全员（各人只处理本人名下 SKU）",
+    "scope": "all",
     "schedule": {
       "type": "daily",
-      "time": "18:50",
+      "time": "09:40",
       "grace_minutes": 40
     },
-    "schedule_label": "每天 18:50",
+    "schedule_label": "每天 09:40 起（不限 18:50 窗口）",
     "source_skill": "$blacklight-daily-super-subsidy",
     "resource_id": 2935,
     "area_id": 319901,
@@ -27,9 +25,9 @@
     ],
     "sop": "references/sop/01-super-subsidy.md",
     "completion": [
-      "逐 SKU 通过 apply_dryrun 预检",
-      "串行提交并拿到 confirm_token",
-      "回读 applied_sku_ids 前后差确认真实报名"
+      "采销用 skill 跑完并成功提交即视为 done",
+      "提交回执、数量、失败明细记入 done 的 summary / metric",
+      "（建议）平台回读结果一并记录，回读不再作为完成门槛"
     ],
     "metrics": [
       "候选数",
@@ -43,19 +41,23 @@
     "count_in_rate": true,
     "auto": true,
     "status": "ready",
-    "summary": "只报本人名下 SKU；普通品毛利≥5%，有广告叠加≥20%；库存 10000；禁止并发、禁止只信回执。"
+    "summary": "只报本人名下 SKU；skill 跑完成功提交即 done，提交回执与数量记入摘要。",
+    "constraints": [
+      "频道/资源位：resourceId=2935 / areaId=319901 / activityId=101664799（京喜自营）",
+      "毛利门槛：普通品≥5%，有广告叠加≥20%；库存 10000",
+      "已确认不限 18:50 窗口，当天可直接跑；平台若提示未到报名时间则记 blocked 并写原始报错",
+      "提交必须串行，禁止并发"
+    ]
   },
   {
     "id": "flash_sale",
-    "seq": 3,
+    "seq": 2,
     "name": "秒杀提报",
     "category": "每日固定作业",
     "priority": "P0",
-    "owners": [
-      "zhangsan1"
-    ],
-    "owner_label": "张三",
-    "scope": "owner",
+    "owners": [],
+    "owner_label": "全员（各人只处理本人名下 SKU）",
+    "scope": "all",
     "schedule": {
       "type": "daily",
       "time": "10:30",
@@ -75,9 +77,9 @@
     ],
     "sop": "references/sop/03-flash-sale.md",
     "completion": [
-      "当天清单清洗完成",
-      "三场提报均已提交",
-      "按 SKU+日期回读 batchId、场次、价格、账号"
+      "采销用 skill 跑完并成功提交即视为 done",
+      "提交回执、数量、失败明细记入 done 的 summary / metric",
+      "（建议）平台回读结果一并记录，回读不再作为完成门槛"
     ],
     "metrics": [
       "可报名单",
@@ -89,19 +91,22 @@
     "count_in_rate": true,
     "auto": true,
     "status": "ready",
-    "summary": "20:00 场、T+3～T+5、24/48/52 小时取最长；提报价取 E 列；只认 applied_by_skus 回读。"
+    "summary": "本人名下可报名单清洗后全量提交；skill 跑完成功提交即 done。",
+    "constraints": [
+      "频道/资源位：resourceId=2858 / areaId=313601 / activityId=101666814",
+      "场次：T+3～T+5 三场，batchSession=20:00:00，时长 24h",
+      "只报本人名下 SKU，applySkuType=3"
+    ]
   },
   {
     "id": "tejia_weekly",
-    "seq": 4,
+    "seq": 3,
     "name": "特价提报与后续券池评估",
     "category": "每日固定作业",
     "priority": "P0",
-    "owners": [
-      "zhangsan1"
-    ],
-    "owner_label": "张三",
-    "scope": "owner",
+    "owners": [],
+    "owner_label": "全员（各人只处理本人名下 SKU）",
+    "scope": "all",
     "schedule": {
       "type": "daily",
       "time": "11:30",
@@ -128,12 +133,9 @@
     ],
     "sop": "references/sop/04-tejia-weekly.md",
     "completion": [
-      "与本人商品档交叉过滤完成",
-      "外投 / 东东农场 / 平台禁令剔除完成",
-      "两条毛利公式逐 SKU 校验（5.9-5 与 4.9-4 均不亏）",
-      "采销确认后 table_apply 提交",
-      "ms_submit_list(38801203) 回查并下载失败明细",
-      "后续券池评估表输出（只读）"
+      "采销用 skill 跑完并成功提交即视为 done",
+      "提交回执、数量、失败明细记入 done 的 summary / metric",
+      "（建议）平台回读结果一并记录，回读不再作为完成门槛"
     ],
     "metrics": [
       "池子总数",
@@ -148,25 +150,22 @@
     "count_in_rate": true,
     "auto": true,
     "status": "ready",
-    "summary": "前置池 area=38801203/activity=101766465/resourceId=5177，约八成是别人的品，必须先按本人商品档交叉过滤；报名价=建议价；报名前须采销确认。",
-    "short": "特价"
+    "summary": "两条承担公式逐 SKU 校验后提交；skill 跑完成功提交即 done。",
+    "short": "特价",
+    "constraints": [
+      "审核窗口 11:00-15:00，默认 11:30 提交",
+      "两条承担公式 5.9-5 / 4.9-4 逐 SKU 均不亏",
+      "提交前必须本人确认清单（选品与价格）"
+    ]
   },
   {
     "id": "daily_tool_checkin",
-    "seq": 5,
-    "name": "每日工具使用与双表打卡",
-    "category": "每日工具使用",
+    "seq": 4,
+    "name": "AI 工具使用与双表打卡",
+    "category": "每日固定作业",
     "priority": "P0",
-    "owners": [
-      "zhouba6",
-      "zhangsan1",
-      "wangwu3",
-      "zhengjiu7",
-      "zhaoliu4",
-      "lisi2",
-      "sunqi5"
-    ],
-    "owner_label": "全员（流程负责人：赵六、张三）",
+    "owners": [],
+    "owner_label": "全员（各人只处理本人名下 SKU）",
     "scope": "all",
     "schedule": {
       "type": "daily",
@@ -180,9 +179,9 @@
     ],
     "sop": "references/sop/05-daily-tool-checkin.md",
     "completion": [
-      "POP 端 AI 助手实际提问并被回答",
-      "京喜端 AI 助手实际提问并被回答",
-      "全员需做 / 自营采销 两个 sheet 当天状态=已完成"
+      "采销用 skill 跑完并成功提交即视为 done",
+      "提交回执、数量、失败明细记入 done 的 summary / metric",
+      "（建议）平台回读结果一并记录，回读不再作为完成门槛"
     ],
     "metrics": [
       "POP提问",
@@ -193,24 +192,21 @@
     "count_in_rate": true,
     "auto": true,
     "status": "ready",
-    "summary": "只提问不提交额外操作；两表按姓名列+当天日期打卡，已完成后不得重复点击。"
+    "summary": "两端各提一问 + 双表打卡；全部完成即 done。",
+    "constraints": [
+      "两端 AI 各真提一个问题：POP 端 + 京喜端",
+      "双表：https://joyspace.jd.com/table/PAasp0HBU0cOSEDXLw70 两个 sheet 当天=已完成",
+      "JoySpace 无接口，打卡需人工点表；未真提问/未打卡不得标 done"
+    ]
   },
   {
     "id": "bad_review_appeal",
-    "seq": 6,
-    "name": "差评 / 中评申诉治理",
-    "category": "差评治理",
+    "seq": 5,
+    "name": "品类新差评删除",
+    "category": "每日固定作业",
     "priority": "P0",
-    "owners": [
-      "zhouba6",
-      "zhangsan1",
-      "wangwu3",
-      "zhengjiu7",
-      "zhaoliu4",
-      "lisi2",
-      "sunqi5"
-    ],
-    "owner_label": "全员（流程负责人：张三）",
+    "owners": [],
+    "owner_label": "全员（各人只处理本人名下 SKU）",
     "scope": "all",
     "schedule": {
       "type": "daily",
@@ -222,9 +218,9 @@
     "dependencies": [],
     "sop": "references/sop/06-bad-review-appeal.md",
     "completion": [
-      "计划任务 State=Ready 且 NextRunTime 为下一个 10:10",
-      "dryrun 退出码 0 且日志含 levels/ dry_run",
-      "当天真实执行日志 END 且 errorlevel=0"
+      "采销用 skill 跑完并成功提交即视为 done",
+      "提交回执、数量、失败明细记入 done 的 summary / metric",
+      "（建议）平台回读结果一并记录，回读不再作为完成门槛"
     ],
     "metrics": [
       "dryrun退出码",
@@ -235,154 +231,10 @@
     "count_in_rate": true,
     "auto": true,
     "status": "ready",
-    "summary": "调用 venv python main.py --fast-chaping --real-submit --max-pages 0；禁止管道喂 2/0；bat 必须 ANSI/GBK。"
-  },
-  {
-    "id": "cheap_free_shipping",
-    "seq": 8,
-    "name": "特价便宜包邮 5.9-5 / 4.9-4",
-    "category": "定期作业",
-    "priority": "P1",
-    "owners": [
-      "zhangsan1"
-    ],
-    "owner_label": "张三",
-    "scope": "owner",
-    "schedule": {
-      "type": "weekly",
-      "weekday_iso": 1,
-      "time": "10:30",
-      "grace_minutes": 240
-    },
-    "schedule_label": "按周（默认周一，随特价批次）",
-    "source_skill": "blacklight（yx 券池 / 便宜包邮）",
-    "dependencies": [
-      "blacklight"
-    ],
-    "sop": "references/sop/08-cheap-free-shipping.md",
-    "completion": [
-      "5.9-5 与 4.9-4 两条承担公式逐 SKU 校验",
-      "只报两条公式均≥0 的 SKU",
-      "提交与回读结果留痕"
-    ],
-    "metrics": [
-      "候选数",
-      "两条公式均通过",
-      "提交数",
-      "成功数",
-      "失败数"
-    ],
-    "count_in_rate": true,
-    "auto": false,
-    "status": "needs_confirmation",
-    "summary": "PDF 未给独立流程，复用特价后续券池规则；默认随周一批次，需负责人确认后启用。"
-  },
-  {
-    "id": "official_discount_mark",
-    "seq": 9,
-    "name": "官方直降打标 & 国补 & 9 折等促销提报",
-    "category": "定期作业",
-    "priority": "P1",
-    "owners": [],
-    "owner_label": "待指派",
-    "scope": "owner",
-    "schedule": {
-      "type": "periodic",
-      "label": "按团队通知",
-      "grace_minutes": 0
-    },
-    "schedule_label": "按团队通知",
-    "source_skill": "blacklight（yx 营销中心）",
-    "dependencies": [
-      "blacklight"
-    ],
-    "sop": "references/sop/09-official-discount-mark.md",
-    "completion": [
-      "负责人确认活动与批次",
-      "逐 SKU 校验资格与价格",
-      "提交并回读"
-    ],
-    "metrics": [
-      "候选数",
-      "提交数",
-      "成功数",
-      "失败数"
-    ],
-    "count_in_rate": false,
-    "auto": false,
-    "status": "needs_sop",
-    "summary": "PDF 仅列入作业清单，未给负责人和操作细则；需补负责人与 SOP 后启用。"
-  },
-  {
-    "id": "aftersale_recovery",
-    "seq": 10,
-    "name": "售后订单 & 未合单 & 直赔 & 手工补单运费回收",
-    "category": "定期作业",
-    "priority": "P1",
-    "owners": [],
-    "owner_label": "待指派",
-    "scope": "owner",
-    "schedule": {
-      "type": "periodic",
-      "label": "按团队通知",
-      "grace_minutes": 0
-    },
-    "schedule_label": "按团队通知",
-    "source_skill": "OSW 售后 / 财务核销",
-    "dependencies": [
-      "blacklight"
-    ],
-    "sop": "references/sop/10-aftersale-recovery.md",
-    "completion": [
-      "负责人确认回收口径",
-      "逐单核销并留凭证",
-      "回读核销结果"
-    ],
-    "metrics": [
-      "待回收单数",
-      "已回收单数",
-      "金额",
-      "失败数"
-    ],
-    "count_in_rate": false,
-    "auto": false,
-    "status": "needs_sop",
-    "summary": "PDF 仅列入作业清单，未给负责人和操作细则；需补负责人与 SOP 后启用。"
-  },
-  {
-    "id": "newcomer_price",
-    "seq": 11,
-    "name": "符合新人价标准的 SKU 提报",
-    "category": "定期作业",
-    "priority": "P1",
-    "owners": [],
-    "owner_label": "待指派",
-    "scope": "owner",
-    "schedule": {
-      "type": "periodic",
-      "label": "按团队通知",
-      "grace_minutes": 0
-    },
-    "schedule_label": "按团队通知",
-    "source_skill": "blacklight（yx 新人价）",
-    "dependencies": [
-      "blacklight"
-    ],
-    "sop": "references/sop/11-newcomer-price.md",
-    "completion": [
-      "负责人确认新人价标准与活动批次",
-      "逐 SKU 校验资格与价格",
-      "提交并回读"
-    ],
-    "metrics": [
-      "候选数",
-      "提交数",
-      "成功数",
-      "失败数"
-    ],
-    "count_in_rate": false,
-    "auto": false,
-    "status": "needs_sop",
-    "summary": "PDF 仅列入作业清单，未给负责人和操作细则；需补负责人与 SOP 后启用。"
+    "summary": "本人名下品类新差评删除；程序跑完且日志有结果即 done。",
+    "constraints": [
+      "本机「京东采销自动化助手_直接提报」，全员电脑已装，缺程序记 blocked",
+      "默认 10:10 计划任务执行；cookie 过期记 fail 并写原始报错"
+    ]
   }
 ]

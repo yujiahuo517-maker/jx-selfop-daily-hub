@@ -14,7 +14,7 @@ jx-selfop-daily-hub/
   data/roster.json         # 本机名册（出厂空，安装时写入本人）
   scripts/jx_task.py       # 执行留痕 CLI
   dashboard/               # 零依赖看板
-  references/              # 逐项 SOP 与口径（默认 9 项）
+references/              # 逐项 SOP 与口径（默认 5 项；_ondemand/ 按需 4 项）
 ```
 
 ## 二、成员安装（每人一次）

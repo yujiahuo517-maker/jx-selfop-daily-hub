@@ -22,7 +22,7 @@
   powershell -ExecutionPolicy Bypass -File automation\daily-run.ps1
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File automation\daily-run.ps1 -Erp zhangsan1 -StartDashboard
+powershell -ExecutionPolicy Bypass -File automation\daily-run.ps1 -Erp <本人ERP> -StartDashboard
 #>
 param(
     [string]$Erp = "",

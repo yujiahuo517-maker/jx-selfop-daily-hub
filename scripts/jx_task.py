@@ -33,8 +33,10 @@ REPORTS_PATH = HOME / "reports.jsonl"
 SYNC_PATH = HOME / "synced.json"
 USAGE_PATH = HOME / "usage.json"
 USAGE_OFFLINE_PATH = HOME / "usage_offline.jsonl"
+OVERRIDES_PATH = HOME / "overrides.json"
 
 SKILL_VERSION = "1.3.0"
+DEFAULT_START_TIME = "09:30"
 
 # 统一的作业完成看板（全员共用，成员装完即指向这里）
 DEFAULT_SERVER = (os.environ.get("JX_BOARD_URL") or "https://jx-selfop-board.joyapp.jd.com").rstrip("/")
@@ -75,12 +77,41 @@ def _write_json(path: Path, value: Any) -> None:
     tmp.replace(path)
 
 
+def load_overrides() -> dict[str, Any]:
+    """本人在对话里改过的设置：开工时间、单项时间、频道页限制备注、临时停用。"""
+    return _read_json(OVERRIDES_PATH, {})
+
+
+def start_time() -> str:
+    cfg = load_config()
+    return str(load_overrides().get("start_time") or cfg.get("start_time") or DEFAULT_START_TIME)
+
+
 def load_tasks() -> list[dict[str, Any]]:
-    return _read_json(DATA / "tasks.json", [])
+    """读作业清单，并叠加本人在对话里改过的设置（不改仓库里的 tasks.json）。"""
+    tasks = _read_json(DATA / "tasks.json", [])
+    rules = (load_overrides().get("tasks") or {})
+    out: list[dict[str, Any]] = []
+    for task in tasks:
+        rule = rules.get(str(task.get("id", ""))) or {}
+        if rule.get("enabled") is False:
+            continue
+        if rule.get("time"):
+            task.setdefault("schedule", {})["time"] = str(rule["time"])
+            task["schedule_label"] = f"每天 {rule['time']}（已按本人设置）"
+        if rule.get("note"):
+            task["user_note"] = str(rule["note"])
+        out.append(task)
+    return out
 
 
 def load_roster() -> list[dict[str, Any]]:
     return _read_json(DATA / "roster.json", [])
+
+
+def load_pending_roster() -> list[dict[str, Any]]:
+    """名单里还没拿到 ERP 账号的人（不参与分派，只在 doctor 里提醒补账号）。"""
+    return _read_json(DATA / "roster.pending.json", [])
 
 
 def load_config() -> dict[str, Any]:
@@ -267,8 +298,8 @@ def ensure_roster(person: dict[str, Any]) -> bool:
 def rebind_owners(person: dict[str, Any]) -> int:
     """把负责人专属作业的示例占位 owner 换成本人。
 
-    仓库里的 tasks.json 用 zhangsan1 / lisi2 之类占位，直接发给同事会导致对方看不到
-    超补、秒杀、特价这类 owner 作业。安装时统一指向执行人，返回改动的作业数。
+    v1.4 起 5 项每日作业都是 scope=all（全员作业），此函数保留为兼容旧注册表：
+    若仍有 scope=owner 的作业，安装时统一把占位 owner 指向执行人，返回改动的作业数。
     scope=all（全员项）和 owners 为空（待指派）的作业不动。
     """
     tasks = load_tasks()
@@ -300,6 +331,7 @@ def cmd_init(args: argparse.Namespace) -> int:
             "team_id": person.get("team_id", ""),
             "server": server,
             "ingest_token": (args.token or cfg.get("ingest_token", "")).strip(),
+            "start_time": cfg.get("start_time") or DEFAULT_START_TIME,
             "installed_at": cfg.get("installed_at") or datetime.now().isoformat(timespec="seconds"),
         }
     )
@@ -803,10 +835,19 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         warn("名册", f"{len(roster)} 人，不含本人；重跑 init 会自愈写入")
 
+    pending = load_pending_roster()
+    if pending:
+        warn(
+            "名册待补",
+            "、".join(str(p.get("name", "")) for p in pending)
+            + "：还没有 ERP 账号，暂不派活；补上 ERP 或让他们自助领令牌后自动入册",
+        )
+
     tasks = load_tasks()
     if tasks:
         p0 = sum(1 for task in tasks if task.get("priority") == "P0")
         ok("作业清单", f"{len(tasks)} 项（P0 {p0} 项）")
+        ok("开工时间", f"{start_time()}（可在对话里改）")
     else:
         bad("作业清单", "data/tasks.json 为空")
 
@@ -1021,6 +1062,69 @@ def cmd_serve(args: argparse.Namespace) -> int:
 PRIORITY_RANK = {"P0": 0, "P1": 1, "P2": 2}
 
 
+def _valid_hhmm(value: str) -> bool:
+    parts = value.split(":")
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        return False
+    hour, minute = int(parts[0]), int(parts[1])
+    return 0 <= hour <= 23 and 0 <= minute <= 59
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    """改本人设置：开工时间、单项时间、频道页限制备注、临时停用某项。"""
+    base = {str(task["id"]): task for task in _read_json(DATA / "tasks.json", [])}
+    overrides = load_overrides()
+    changed = False
+    if args.start_time:
+        if not _valid_hhmm(args.start_time):
+            raise SystemExit(f"时间格式应为 HH:mm，例如 09:30，实际：{args.start_time}")
+        overrides["start_time"] = args.start_time
+        changed = True
+    if args.task:
+        task_id = args.task.strip()
+        if task_id not in base:
+            raise SystemExit("未知 task_id，可选：" + "、".join(base))
+        rule = (overrides.setdefault("tasks", {})).setdefault(task_id, {})
+        if args.time:
+            if not _valid_hhmm(args.time):
+                raise SystemExit(f"时间格式应为 HH:mm，例如 10:30，实际：{args.time}")
+            rule["time"] = args.time
+            changed = True
+        if args.note is not None:
+            rule["note"] = args.note
+            changed = True
+        if args.disable:
+            rule["enabled"] = False
+            changed = True
+        if args.enable:
+            rule["enabled"] = True
+            changed = True
+        if not any(key in rule for key in ("time", "note", "enabled")):
+            raise SystemExit("需要至少一个改动：--time / --note / --disable / --enable")
+    if changed:
+        _write_json(OVERRIDES_PATH, overrides)
+        print(f"已保存到 {OVERRIDES_PATH}")
+    print(f"开工时间：{start_time()}")
+    rules = overrides.get("tasks") or {}
+    for task in load_tasks():
+        rule = rules.get(str(task["id"])) or {}
+        clock = str(task.get("schedule", {}).get("time", ""))
+        extra = []
+        if rule.get("time"):
+            extra.append("自定义时间")
+        if rule.get("enabled") is False:
+            extra.append("已停用")
+        if rule.get("note"):
+            extra.append("备注：" + str(rule["note"]))
+        suffix = ("  ← " + "；".join(extra)) if extra else ""
+        print(f"  {task['id']:<18} {clock:<6} {task.get('name', '')}{suffix}")
+    for task in _read_json(DATA / "tasks.json", []):
+        rule = rules.get(str(task["id"])) or {}
+        if rule.get("enabled") is False:
+            print(f"  {task['id']:<18} {'--':<6} {task.get('name', '')}  ← 已停用（不派活、不计率）")
+    return 0
+
+
 def _minutes_of_time(value: Any) -> int:
     try:
         hour, minute = (int(part) for part in str(value or "").split(":"))
@@ -1043,11 +1147,11 @@ def _done_template(task: dict[str, Any]) -> str:
     parts = [
         "python scripts/jx_task.py done",
         f'--task {task["id"]}',
-        '--summary "<结果与关键数字>"',
+        '--summary "<跑完提交的结果与数量>"',
     ]
     if metrics:
         parts.append(" ".join(f"--metric {name}=<数值>" for name in metrics))
-    parts.append("--evidence 回读=<回读方式与结果>")
+    parts.append("--evidence 回读=<可选：平台回读结果>")
     return " ".join(parts)
 
 
@@ -1088,6 +1192,8 @@ def build_plan(
                 "sop_exists": bool(sop_path and sop_path.exists()),
                 "dependencies": list(task.get("dependencies", [])),
                 "completion": list(task.get("completion", [])),
+                "constraints": list(task.get("constraints", [])),
+                "user_note": str(task.get("user_note", "")),
                 "metrics": list(task.get("metrics", [])),
                 "note": task.get("summary", ""),
                 "last_summary": record.get("summary", ""),
@@ -1113,6 +1219,7 @@ def build_plan(
         "date": for_date.isoformat(),
         "weekday": "周" + "一二三四五六日"[for_date.isoweekday() - 1],
         "person": {"erp": person["erp"], "name": person.get("name", person["erp"])},
+        "start_time": start_time(),
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "totals": totals,
         "tasks": [row for row in rows if row["auto_executable"]] if auto_only else rows,
@@ -1139,6 +1246,7 @@ def _plan_markdown(payload: dict[str, Any]) -> str:
         "",
         f"进度 {totals['done']}/{totals['expected']}（仅记录 {totals.get('record_only', 0)} 项不计率） · 逾期 {totals['overdue']} · 可自动执行 {totals['auto_executable']}"
         f" · 待人工 {totals['needs_manual']} · 待补 SOP {totals['needs_sop']} · 待确认 {totals['needs_confirmation']}",
+        f"开工时间 {payload.get('start_time', DEFAULT_START_TIME)}",
         "",
         f"**下一个动作**：{payload['next_action']}",
         "",
@@ -1167,6 +1275,10 @@ def _plan_markdown(payload: dict[str, Any]) -> str:
             )
         if row["completion"]:
             lines.append("  - 完成标准：" + "；".join(row["completion"]))
+        for rule in row.get("constraints") or []:
+            lines.append(f"  - 限制：{rule}")
+        if row.get("user_note"):
+            lines.append(f"  - 本人补充：{row['user_note']}")
         if row["readiness_hint"]:
             lines.append(f"  - 阻塞：{row['readiness_hint']}")
         if row["last_error"]:
@@ -1185,6 +1297,7 @@ def _task_meta(task_id: str) -> dict[str, Any]:
 def _print_plan(payload: dict[str, Any]) -> None:
     totals = payload["totals"]
     print(f"{payload['person']['name']} 的每日执行单 · {payload['date']}（{payload['weekday']}）")
+    print(f"开工时间 {payload.get('start_time', DEFAULT_START_TIME)}（可在对话里改；单项时间与频道页限制也可改）")
     print(
         f"进度 {totals['done']}/{totals['expected']}（仅记录 {totals.get('record_only', 0)} 项不计率） · 逾期 {totals['overdue']} · 可自动执行 {totals['auto_executable']}"
         f" · 待人工 {totals['needs_manual']} · 待补 SOP {totals['needs_sop']} · 待确认 {totals['needs_confirmation']}"
@@ -1220,6 +1333,10 @@ def _print_plan(payload: dict[str, Any]) -> None:
                 + f" · {_meta.get('channel', '')}"
                 f" · applySkuType={_meta.get('apply_sku_type', '3')}"
             )
+        for rule in row.get("constraints") or []:
+            print(f"    限制：{rule}")
+        if row.get("user_note"):
+            print(f"    本人补充：{row['user_note']}")
         if row["readiness_hint"]:
             print(f"    阻塞：{row['readiness_hint']}")
         if row["last_error"]:
@@ -1264,6 +1381,16 @@ def build_parser() -> argparse.ArgumentParser:
     whoami = sub.add_parser("whoami", help="查看当前配置")
     whoami.add_argument("--json", action="store_true")
     whoami.set_defaults(func=cmd_whoami)
+
+    config = sub.add_parser("config", help="改本人设置：开工时间 / 单项时间 / 频道页限制备注 / 临时停用")
+    config.add_argument("--show", action="store_true", help="只查看当前开工时间与个人覆盖，不做修改")
+    config.add_argument("--start-time", dest="start_time", default="", help="每日开工时间，默认 09:30")
+    config.add_argument("--task", default="", help="作业 task_id，如 flash_sale")
+    config.add_argument("--time", default="", help="该作业的执行时间，如 10:30")
+    config.add_argument("--note", default=None, help="该作业的频道页限制/备注（给你和 AI 看）")
+    config.add_argument("--disable", action="store_true", help="临时停用该作业（不派活、不计率）")
+    config.add_argument("--enable", action="store_true", help="恢复该作业")
+    config.set_defaults(func=cmd_config)
 
     doctor = sub.add_parser("doctor", help="安装自检：Python / Node / 名册 / 看板 / 令牌 / 依赖")
     doctor.add_argument("--server", default="")
